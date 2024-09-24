@@ -36,6 +36,21 @@ def start_server():
 
 
 #client join channels 
+#CLIENT CLASS
+class Client:
+    def initialise(self, socket, clientAddress):
+        
+        self.socket = socket
+        self.clientAddress = clientAddress
+        self.username = None
+        self.nickname = None
+    
+    def set_client_info(self, username, nickname):
+        
+        self.username
+        self.nickname
+        
+#CHANNEL CLASS
 
 #client messages
 
