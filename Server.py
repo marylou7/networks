@@ -1,27 +1,34 @@
 import socket 
 
-
-HOST = "::" # IPv6 connection 
-PORT = "6667" #IRC port
-
+HOST = "::1" # IPv6 connection 
+PORT = 6667 #IRC port
 
 #server socket
-
-    
 
 def start_server():
 
 #AF.INET6 sosocket uses IPv6
 #SOCK stream so socket uses TCP
 
-    server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    server.bind((HOST, PORT))
-    server.listen(5) #accepting incoming connections
+    try:
+        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        print("socket created")
+    except socket.err as err:
+        print("error creating socket")
 
+    server.bind((HOST, PORT))
+    print ("socket binded to %s" %(PORT)) 
+    server.listen(5) #accepting incoming connections
+    print("socket listening")
+
+    # loop to keep looping until interrupted
     while True:
-        #accepting incoming connection
-        client_socket, address = server.accept()
-        #threading?
+        
+        #accepting incoming connection 
+        # client socket is the socket the connection came from
+        clientsocket, address = server.accept()
+        clientsocket.send("client connected")
+            
 
 # client connection 
     # client choosing username and real name
@@ -34,3 +41,5 @@ def start_server():
 
 
 #client private messages 
+
+start_server()
