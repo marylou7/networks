@@ -46,14 +46,24 @@ def start_server():
         #print(data.decode())
         
         message = parse_message(data)
-        print(f"Received: {message}") # to check the data received
+        #print(f"Received: {message}") # to check the data received
 
-        # getting the nickname - i know we do it other places but just for now to use it here
+        # getting the nickname 
         if data.find(bytes('NICK', 'UTF-8')) != -1: #if the text contains a nickname
             
             split = data.decode().split()
-            nickname = split[1]
+            nick = split.index('NICK')
+            nickname = split[nick+1] # nickname will be after NICK
             welcomeMessage(clientsocket, nickname) # call function to display welcome message
+            client.nickname = nickname
+            #print(client.nickname)
+        
+        if data.find(bytes('USER', 'UTF-8')) != -1 :# if the text contains a username
+            split = data.decode().split()
+            user = split.index('USER')
+            username = split[user+1] # username will be the one after USER command
+            client.username = username
+            #print(client.username)
 
         # PING
         #PING(clientsocket)
@@ -92,8 +102,8 @@ def welcomeMessage(clientsocket, nickname):
         f":{hostname} 002 {nickname} :Your host is {hostname}, running version 1",
         f":{hostname} 003 {nickname} :This server was created sometime",
         f":{hostname} 004 {nickname} {hostname} version 1",
-        f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
-        f":{hostname} 422 {nickname} :MOTD File is missing"
+        #f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
+        #f":{hostname} 422 {nickname} :MOTD File is missing"
     ]
     
      # send each welcome message to the client
