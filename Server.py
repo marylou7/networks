@@ -13,8 +13,41 @@ import select
 HOST = "::1" # IPv6 connection 
 PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
+channels = {}
+
+
+
+#CLIENT CLASS
+class Client:
+    def __init__(self, clientsocket, clientAddress):  # initialise the client class with socket and address
+        self.socket = clientsocket
+        self.clientAddress = clientAddress
+        self.username = None
+        self.nickname = None
+        self.hostname = socket.gethostname()
+    
+    def set_client_info(self, username, nickname):
+        
+        self.username
+        self.nickname
+        
+#CHANNEL CLASS
+
+class Channel:
+
+    def __init__(self, name):
+        self.name =name
+        self.clients = []
+
+    def add_client(self, client):
+        self.clients.append(client)
+
+    def remove_client(self, client):
+        self.clients.remove(client)
+
 
 #server socket
+
 def start_server():
 
 #AF.INET6 sosocket uses IPv6
@@ -23,13 +56,15 @@ def start_server():
     try:
         server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         print("socket created")
+        server.bind((HOST, PORT))
+        print ("socket binded to %s" %(PORT)) 
+        server.listen(5) #accepting incoming connections
+        print("socket listening")
     except socket.err as err:
         print("error creating socket")
+        return
 
-    server.bind((HOST, PORT))
-    print ("socket binded to %s" %(PORT)) 
-    server.listen(5) #accepting incoming connections
-    print("socket listening")
+  
    # print("IP: " + socket.gethostbyname(socket.gethostname()))
 
     # loop to keep looping until interrupted
@@ -40,7 +75,8 @@ def start_server():
 
             client = Client(clientsocket, address)  # Create a new client instance
             clients[address] = client  # store client info
-            #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
+            clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}   #to store client details
+
             #instead of breaking loop we have to continue handling for more connections, better done now than later.
             handling_client(clientsocket, address) 
         except Exception as e:
@@ -49,6 +85,7 @@ def start_server():
 
 def handling_client(clientsocket, address):
     print("handling_client called for:", clientsocket.getpeername())  # checkingwhich client is connected
+
     #last_ping_time = time.time()
     try:
         while True:   
@@ -57,17 +94,25 @@ def handling_client(clientsocket, address):
             if readable:
                 try:
                     data = clientsocket.recv(1024)
+
                     message = parse_message(data)
                
                     if  data:
         #               print(f"Data received from {clientsocket.getpeername()}: '{data}'")
                         processing_data(clientsocket, message, address)
+                        no_data_message_printed = False
+
                     else:
                         print("no data received, closing connection.")
                         break 
                 except (socket.error, UnicodeDecodeError) as e:
                     print(f"error with getting data: {e}")
                     break
+            else:
+                if not no_data_message_printed:
+                    print("checking for data...")                 #no data ready to be read
+                    no_data_message_printed = True
+
                 ##if time.time() - last_ping_time > 10:
                     #PING(clientsocket)  # sending PING to client
                     #last_ping_time = time.time()  # updating last ping time
@@ -118,6 +163,8 @@ def processing_data(clientsocket, data, address):
         if 'PONG' in line:  # comparing strings with strings
             #print("PONG received")   
             pass
+
+            #intially hexchat was automatically assigning /nick, so messages were sent early
             # idk what this is and whether we need it? commenting it out for now
         ''' # ignoring initial HexChat nickname and handling manual one
             if not clients[clientsocket].get('initial_nick_set'):
