@@ -13,41 +13,8 @@ import select
 HOST = "::1" # IPv6 connection 
 PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
-channels = {}
-
-
-
-#CLIENT CLASS
-class Client:
-    def __init__(self, clientsocket, clientAddress):  # initialise the client class with socket and address
-        self.socket = clientsocket
-        self.clientAddress = clientAddress
-        self.username = None
-        self.nickname = None
-        self.hostname = socket.gethostname()
-    
-    def set_client_info(self, username, nickname):
-        
-        self.username
-        self.nickname
-        
-#CHANNEL CLASS
-
-class Channel:
-
-    def __init__(self, name):
-        self.name =name
-        self.clients = []
-
-    def add_client(self, client):
-        self.clients.append(client)
-
-    def remove_client(self, client):
-        self.clients.remove(client)
-
 
 #server socket
-
 def start_server():
 
 #AF.INET6 sosocket uses IPv6
@@ -56,15 +23,13 @@ def start_server():
     try:
         server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         print("socket created")
-        server.bind((HOST, PORT))
-        print ("socket binded to %s" %(PORT)) 
-        server.listen(5) #accepting incoming connections
-        print("socket listening")
     except socket.err as err:
         print("error creating socket")
-        return
 
-  
+    server.bind((HOST, PORT))
+    print ("socket binded to %s" %(PORT)) 
+    server.listen(5) #accepting incoming connections
+    print("socket listening")
    # print("IP: " + socket.gethostbyname(socket.gethostname()))
 
     # loop to keep looping until interrupted
@@ -75,8 +40,7 @@ def start_server():
 
             client = Client(clientsocket, address)  # Create a new client instance
             clients[address] = client  # store client info
-            clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}   #to store client details
-
+            #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
             #instead of breaking loop we have to continue handling for more connections, better done now than later.
             handling_client(clientsocket, address) 
         except Exception as e:
@@ -85,34 +49,24 @@ def start_server():
 
 def handling_client(clientsocket, address):
     print("handling_client called for:", clientsocket.getpeername())  # checkingwhich client is connected
-
     #last_ping_time = time.time()
     try:
-        while True:   
-
+        while True:
             readable, _, _ = select.select([clientsocket], [], [], 5)
             if readable:
                 try:
                     data = clientsocket.recv(1024)
-
                     message = parse_message(data)
                
                     if  data:
         #               print(f"Data received from {clientsocket.getpeername()}: '{data}'")
                         processing_data(clientsocket, message, address)
-                        no_data_message_printed = False
-
                     else:
                         print("no data received, closing connection.")
                         break 
                 except (socket.error, UnicodeDecodeError) as e:
                     print(f"error with getting data: {e}")
                     break
-            else:
-                if not no_data_message_printed:
-                    print("checking for data...")                 #no data ready to be read
-                    no_data_message_printed = True
-
                 ##if time.time() - last_ping_time > 10:
                     #PING(clientsocket)  # sending PING to client
                     #last_ping_time = time.time()  # updating last ping time
@@ -143,10 +97,16 @@ def processing_data(clientsocket, data, address):
                 user = split.index('USER')
                 username = split[user+1] # nickname will be after NICK
                 clients[address].username = username
-        if 'NICK' in line:
+        elif 'CAP' in line:
+            pass
+        elif 'PING' in line:
+            pass
+        elif 'NICK' in line:
             split = line.split()
             nick = split.index('NICK')
             nickname = split[nick+1] # nickname will be after NICK
+            if not check_other_nicknames(clientsocket, nickname):
+                return
             if not valid_nickname_check(nickname):
                 invalid_nickname_feedback(clientsocket, nickname)
                 return
@@ -160,12 +120,16 @@ def processing_data(clientsocket, data, address):
                 clients[address].nickname = nickname
             
         #  PONG handling
-        if 'PONG' in line:  # comparing strings with strings
+        elif 'PONG' in line:  # comparing strings with strings
             #print("PONG received")   
             pass
+            
+        else:
+            #unknown command if it is not in the list of known ones
+            error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
+            clientsocket.send(error_message.encode())
 
-            #intially hexchat was automatically assigning /nick, so messages were sent early
-            # idk what this is and whether we need it? commenting it out for now
+        # idk what this is and whether we need it? commenting it out for now
         ''' # ignoring initial HexChat nickname and handling manual one
             if not clients[clientsocket].get('initial_nick_set'):
 
@@ -196,8 +160,21 @@ def processing_data(clientsocket, data, address):
 # check a nickname to make sure it is valid
 def valid_nickname_check(nickname):
     #IRC standard: nick has to start with letter and contain letters, digits, -, and _
-
     return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
+
+# check nickname against other nicknames on the server
+def check_other_nicknames(clientsocket, nickname):
+    # loop through all nicknames of clients in the dictionary
+    if bool(clients):
+        for x in clients.values():
+            #print(x.nickname)
+            # if given nickname matches an already given nickanme
+            if nickname == x.nickname:
+                error_message = f":{socket.gethostname()} 433 * {nickname} :Nickname is already in use\r\n"
+                clientsocket.send(error_message.encode())
+                return False
+    return True
+    
 
 # erroneous nickname error
 def invalid_nickname_feedback(clientsocket, nickname):
