@@ -48,44 +48,47 @@ def start_server():
     
 
 def handling_client(clientsocket, address):
-    print("handling_client called for:", clientsocket.getpeername())  # checkingwhich client is connected
-    #last_ping_time = time.time()
+    print("handling_client called for:", clientsocket.getpeername())  # checking which client is connected
+    
+    last_activity_time = time.time()  # trracks the last time we received anything from client
+    ping_interval = 20  # time for sending PING if no activity from the client
+    pong_timeout = 60  # timeout for waiting for PONG or anything else
+    
     try:
         while True:
+            # first check if we need to send a PING because there's been no activity
+            if time.time() - last_activity_time > ping_interval:
+                PING(clientsocket)  # send PING to client
+                last_activity_time = time.time()  # reset last activity time
+
+            # check for timeout
+            if time.time() - last_activity_time > pong_timeout:
+                print(f"No activity from {address} for {pong_timeout} seconds, disconnecting...")
+                break  # disconnect the client
+            
             readable, _, _ = select.select([clientsocket], [], [], 5)
             if readable:
                 try:
                     data = clientsocket.recv(1024)
-                    message = parse_message(data)
-               
-                    if  data:
-        #               print(f"Data received from {clientsocket.getpeername()}: '{data}'")
+                    if data:
+                        message = parse_message(data)
+                        print(f"Received message from {address}: {message}")
+
+                        # reset last activity time
+                        last_activity_time = time.time()
+                        
+                        # Process other data
                         processing_data(clientsocket, message, address)
                     else:
-                        print("no data received, closing connection.")
+                        print("No data received, closing connection.")
                         break 
                 except (socket.error, UnicodeDecodeError) as e:
-                    print(f"error with getting data: {e}")
-                    break
-                ##if time.time() - last_ping_time > 10:
-                    #PING(clientsocket)  # sending PING to client
-                    #last_ping_time = time.time()  # updating last ping time
-            
+                    print(f"Error with getting data: {e}")
+                    break 
     finally:
         clientsocket.close()
-        print("closed connection by", address)
+        print("Closed connection by", address)
         del clients[address]
-   
-
-        # PING
-        #PING(clientsocket)
-        #if message.startswith("PING"):
-        # get the lag value from the ping message
-        #lagvalue = message.split()[1]  # lag value after PING
-        # create a PONG response using the lag value
-        #response = f":{client.hostname} PONG {client.hostname} :{lagvalue}"
-        # clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
-        # print(f"Sent: {response}")
 
 def processing_data(clientsocket, data, address):
     print("data received:", data)
@@ -93,39 +96,43 @@ def processing_data(clientsocket, data, address):
     
     for line in lines:  # handle multiple lines
         if 'USER' in line:
-                split = line.split()
-                user = split.index('USER')
-                username = split[user+1] # nickname will be after NICK
-                clients[address].username = username
+            split = line.split()
+            user = split.index('USER')
+            username = split[user + 1]  # nickname will be after USER
+            clients[address].username = username
+        
         elif 'CAP' in line:
-            pass
+            pass  # Handle CAP if needed
+        
         elif 'PING' in line:
-            pass
+            response = f":{socket.gethostname()} PONG {socket.gethostname()} :{line.split()[1]}"
+            clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
+            print(f"Sent: {response}")
+
         elif 'NICK' in line:
             split = line.split()
             nick = split.index('NICK')
-            nickname = split[nick+1] # nickname will be after NICK
+            nickname = split[nick + 1]  # nickname will be after NICK
             if not check_other_nicknames(clientsocket, nickname):
                 return
             if not valid_nickname_check(nickname):
                 invalid_nickname_feedback(clientsocket, nickname)
                 return
-            # if it is a valid nickname, change it, checking first whether it is a setting up nickname, or a change later
-            if (clients[address].nickname == None): # if nickname has not already been set
-                welcomeMessage(clientsocket, nickname) # call function to display welcome message
+             # if it is a valid nickname, change it, checking first whether it is a setting up nickname, or a change later
+            if clients[address].nickname is None:  # if nickname has not already been set
+                welcomeMessage(clientsocket, nickname)  # call function to display welcome message
                 clients[address].nickname = nickname
-            else :
-                namechange = ":" + clients[address].nickname + "!" + clients[address].username + "@" + HOST + " NICK " + nickname
+            else:
+                namechange = f":{clients[address].nickname}!{clients[address].username}@{HOST} NICK {nickname}"
                 clientsocket.send(f"{namechange}\r\n".encode('utf-8'))
                 clients[address].nickname = nickname
-            
-        #  PONG handling
-        elif 'PONG' in line:  # comparing strings with strings
-            #print("PONG received")   
-            pass
+        
+        elif 'PONG' in line:  # respond to PONG
+            print(f"PONG received from {address}")
+            last_pong_time = time.time()  # reset the pong time when PONG received
             
         else:
-            #unknown command if it is not in the list of known ones
+            # Unknown command if it is not in the list of known ones
             error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
             clientsocket.send(error_message.encode())
 
