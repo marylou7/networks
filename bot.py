@@ -37,8 +37,7 @@ def log_in():
     # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
 
 def getText():
-    text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc.
-    
+    text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc.  
     if text.find(bytes('PING', 'UTF-8')) != -1: #if the text is a ping
         botSock.send(bytes('PONG ' + socket.gethostname() + '\r\n', 'UTF-8')) #replies with a pong
     
