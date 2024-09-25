@@ -41,39 +41,31 @@ def start_server():
 
     # read any data from the client socket
     # need to parse it to do things with it
+    
     while 1:
         data = clientsocket.recv(1024)
         #print(data.decode())
-        
         message = parse_message(data)
-        #print(f"Received: {message}") # to check the data received
+        print(f"Received: {message}") # to check the data received
 
-        # getting the nickname 
+        # getting the nickname - i know we do it other places but just for now to use it here
         if data.find(bytes('NICK', 'UTF-8')) != -1: #if the text contains a nickname
             
             split = data.decode().split()
-            nick = split.index('NICK')
-            nickname = split[nick+1] # nickname will be after NICK
+            nickname = split[1]
             welcomeMessage(clientsocket, nickname) # call function to display welcome message
-            client.nickname = nickname
-            #print(client.nickname)
-        
-        if data.find(bytes('USER', 'UTF-8')) != -1 :# if the text contains a username
-            split = data.decode().split()
-            user = split.index('USER')
-            username = split[user+1] # username will be the one after USER command
-            client.username = username
-            #print(client.username)
 
         # PING
         #PING(clientsocket)
-        if message.startswith("PING"):
-          # get the lag value from the ping message
-          lagvalue = message.split()[1]  # lag value after PING
-          # create a PONG response using the lag value
-          response = f":{client.hostname} PONG {client.hostname} :{lagvalue}"
-          clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
-          print(f"Sent: {response}")
+        #if message.startswith("PING"):
+        # get the lag value from the ping message
+        #lagvalue = message.split()[1]  # lag value after PING
+        # create a PONG response using the lag value
+        #response = f":{client.hostname} PONG {client.hostname} :{lagvalue}"
+        # clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
+        # print(f"Sent: {response}")
+          
+        PING(clientsocket)
 
         # check for a response
         if data.find(bytes('PONG', 'UTF-8')) != -1: #if the text is a ping
@@ -102,8 +94,8 @@ def welcomeMessage(clientsocket, nickname):
         f":{hostname} 002 {nickname} :Your host is {hostname}, running version 1",
         f":{hostname} 003 {nickname} :This server was created sometime",
         f":{hostname} 004 {nickname} {hostname} version 1",
-        #f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
-        #f":{hostname} 422 {nickname} :MOTD File is missing"
+        f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
+        f":{hostname} 422 {nickname} :MOTD File is missing"
     ]
     
      # send each welcome message to the client
