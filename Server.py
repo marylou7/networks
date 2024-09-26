@@ -231,8 +231,30 @@ def welcomeMessage(clientsocket, nickname):
     
      # send each welcome message to the client
     for message in welcomeMessages:
-        clientsocket.sendall(f"{message}\r\n".encode('utf-8'))
-      
+        if is_valid_message(message): # use the validation function before sending
+            print(f"Sending valid message: {message}")
+            clientsocket.sendall(f"{message}\r\n".encode('utf-8'))
+        else:
+            print(f"Garbage message detected: {message}")
+            continue
+
+
+def is_valid_message(message):
+    # checks if the message matches the exact IRC message format:
+    # e.g. :hostname 001 nickname :Welcome to the IRC server
+
+    # the regex pattern for the message format
+    pattern = r'^:(\S+) (\d{3}) (\S+) :(.+)$'
+    
+    # compare message against the pattern
+    match = re.match(pattern, message)
+    
+    if match:
+        return True
+    else:
+        return False
+    
+    
 # client connection 
 # client choosing username and real name
 #client join channels 
