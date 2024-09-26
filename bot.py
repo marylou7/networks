@@ -56,53 +56,30 @@ def sendMsg(message, target):
     #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
 
 
-
 # Retaining the initial information sent by miniircd about the channel and its users
 def storeInitialInfo():
-    
-    initialFile = open("initialInfo.txt","w") # open 'initialInfo.txt' <- this file will store the initial info
-    initial = getText()
-    initialText = f'Initial information send by miniircd about the channel: {initial} \n'
-    #print(f'Initial information send by miniircd about the channel: {initial}')
-    initialFile.write(initialText + '\n')
-    
-    # summarise the initial information (host, channel name, running version, users + services)
-    initialFile.write('Summary of the initial information sent by miniircd: \n')
-    
-    # host:
-    host = f'The host is: {socket.gethostname()} \n'
-    #print(host)
-    initialFile.write(host)
-    
-    # channel name:
-    splitText = initialText.split('#')
-    #print(splitText)
-    channelSplit = splitText[3]
-    slicePlace = channelSplit.find(":")
-    channelName = channelSplit[:slicePlace]
-    #print(channelName)
-    initialFile.write(f'Channel name: {channelName} \n')
-    
-    # running version:
-    splitText = initialText.split(',')
-    split2 = splitText[2]
-    runSplit = split2.find(":")
-    runningVerison = split2[1:runSplit]
-    initialFile.write(runningVerison + '\n')
-    
-    # users + services:
-    splitText = initialText.split(':')
-    #print(splitText)
-    usersServices = splitText[12] + ' ' + splitText[13]
-    initialFile.write(usersServices + '\n')
-    
-    initialFile.close() # closes the initial file
+    initialInfo = getText() #initial info is stored in the variable 'initialInfo'
+
+def getInitialInfo():
+    return getInitialInfo
+
+def getHostName():
+    return socket.gethostname()
+
+def getUsers():
+    # use NAMES command to get all nicknames that are visible on the channel 'test'
+    botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
+    users = getText()
+    return users
 
 
 log_in()
 storeInitialInfo()
 
+
 sendMsg("Obtenez un enfant incendié", "#test") # sends a message to the test channel
+
+#print(getUsers())
 
 
 
