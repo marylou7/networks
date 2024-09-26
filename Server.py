@@ -16,10 +16,10 @@ clients = {} # store clients in dictinary
 
 #server socket
 def start_server():
-
 #AF.INET6 sosocket uses IPv6
 #SOCK stream so socket uses TCP
-
+# loop to keep looping until interrupted
+    
     try:
         server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         print("socket created")
@@ -30,9 +30,7 @@ def start_server():
     print ("socket binded to %s" %(PORT)) 
     server.listen(5) #accepting incoming connections
     print("socket listening")
-   # print("IP: " + socket.gethostbyname(socket.gethostname()))
-
-    # loop to keep looping until interrupted
+    # print("IP: " + socket.gethostbyname(socket.gethostname()))
     while True:
         try: 
             clientsocket, address = server.accept() #accepting incoming connection 
@@ -44,8 +42,7 @@ def start_server():
             #instead of breaking loop we have to continue handling for more connections, better done now than later.
             handling_client(clientsocket, address) 
         except Exception as e:
-            print(f"error while handling client: {e}")
-    
+            print(f"Error while handling client: {e}")
 
 def handling_client(clientsocket, address):
     print("handling_client called for:", clientsocket.getpeername())  # checking which client is connected
@@ -55,7 +52,8 @@ def handling_client(clientsocket, address):
     pong_timeout = 60  # timeout for waiting for PONG or anything else
     
     try:
-        while True:
+        dataBool = True
+        while dataBool == True:
             # first check if we need to send a PING because there's been no activity
             if time.time() - last_activity_time > ping_interval:
                 PING(clientsocket)  # send PING to client
@@ -78,7 +76,7 @@ def handling_client(clientsocket, address):
                         last_activity_time = time.time()
                         
                         # Process other data
-                        processing_data(clientsocket, message, address)
+                        dataBool = processing_data(clientsocket, message, address)
                     else:
                         print("No data received, closing connection.")
                         break 
@@ -100,7 +98,7 @@ def processing_data(clientsocket, data, address):
             user = split.index('USER')
             username = split[user + 1]  # nickname will be after USER
             clients[address].username = username
-        
+
         elif 'CAP' in line:
             pass  # Handle CAP if needed
         
@@ -130,37 +128,47 @@ def processing_data(clientsocket, data, address):
         elif 'PONG' in line:  # respond to PONG
             print(f"PONG received from {address}")
             last_pong_time = time.time()  # reset the pong time when PONG received
+
+        elif line.startswith('QUIT'):
+            # close the server
+            
+            if len(line.split(":")) > 1: # if there is a quit message
+                quitmessage = "Disconnected connection from " + address[0]+ ":" + str(address[1]) +" (" + line.split(":")[1] + ")"
+            else:
+                quitmessage = "Disconnected connection from " + address[0] + ":" + str(address[1]) + " (" + clients[address].username + ")"
+            print(quitmessage)
+            return False
             
         else:
             # Unknown command if it is not in the list of known ones
             error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
             clientsocket.send(error_message.encode())
-
+    return True
         # idk what this is and whether we need it? commenting it out for now
-        ''' # ignoring initial HexChat nickname and handling manual one
-            if not clients[clientsocket].get('initial_nick_set'):
+    ''' # ignoring initial HexChat nickname and handling manual one
+        if not clients[clientsocket].get('initial_nick_set'):
 
-                clients[clientsocket]['initial_nick_set'] = True
-                print(f"ignoring nickname '{nickname}' ignored")
-            else:
-        # setting manually changed nickname
-                clients[clientsocket]['nickname'] = nickname
-                print(f"Manual nickname set to {nickname}")
+            clients[clientsocket]['initial_nick_set'] = True
+            print(f"ignoring nickname '{nickname}' ignored")
+        else:
+    # setting manually changed nickname
+            clients[clientsocket]['nickname'] = nickname
+            print(f"Manual nickname set to {nickname}")
 
-                # sending welcome message after manual nickname is set
-                if clients[clientsocket].get('registered') is False: 
+            # sending welcome message after manual nickname is set
+            if clients[clientsocket].get('registered') is False: 
 
-                    welcomeMessage(clientsocket, clients[clientsocket]['nickname'])
-                    clients[clientsocket]['registered'] = True  
-                    print(f"Client {clients[clientsocket]['nickname']} is now registered.")
+                welcomeMessage(clientsocket, clients[clientsocket]['nickname'])
+                clients[clientsocket]['registered'] = True  
+                print(f"Client {clients[clientsocket]['nickname']} is now registered.")
 
-        # changing manual nickname after registration
-        if clients[clientsocket].get('registered') and 'NICK' in line:
-            new_nickname = line.split()[1]
+    # changing manual nickname after registration
+    if clients[clientsocket].get('registered') and 'NICK' in line:
+        new_nickname = line.split()[1]
 
-            if new_nickname != clients[clientsocket]['nickname']:  # if new nickname
-                clients[clientsocket]['nickname'] = new_nickname
-                print(f"Nickname changed to {new_nickname}")'''
+        if new_nickname != clients[clientsocket]['nickname']:  # if new nickname
+            clients[clientsocket]['nickname'] = new_nickname
+            print(f"Nickname changed to {new_nickname}")'''
  
      
 
@@ -190,6 +198,7 @@ def invalid_nickname_feedback(clientsocket, nickname):
 
 def PING(client):
     try:
+        print("PING")
         client.send(bytes('PING ' + socket.gethostname() + '\r\n', 'UTF-8'))
         time.sleep(10)
         #print("PING sent to", client.getpeername())
@@ -220,8 +229,6 @@ def welcomeMessage(clientsocket, nickname):
     for message in welcomeMessages:
         clientsocket.sendall(f"{message}\r\n".encode('utf-8'))
       
-      
-        
 # client connection 
 # client choosing username and real name
 #client join channels 
