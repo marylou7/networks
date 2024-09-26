@@ -4,15 +4,11 @@ import threading
 import time
 import select
 
-
-'''Pings - server sends pings at regular intervals
-    Server should not repsond to pings but rely on pings coming from the other end to ensure connection is alive
-    if it doesn't get a response, it should then disconnect'''
-
 # create global variables
 HOST = "::1" # IPv6 connection 
 PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
+client_lock = threading.Lock() #locking to access 
 
 #server socket
 def start_server():
@@ -23,26 +19,33 @@ def start_server():
     try:
         server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         print("socket created")
-    except socket.err as err:
-        print("error creating socket")
+        server.bind((HOST, PORT))
+        print ("socket binded to %s" %(PORT)) 
+        server.listen(5) #accepting incoming connections
+        print("socket listening")
+        # print("IP: " + socket.gethostbyname(socket.gethostname()))
+        while True:
+            try: 
+                clientsocket, address = server.accept() #accepting incoming connection 
+                print("Accepted connection from" , address)
 
-    server.bind((HOST, PORT))
-    print ("socket binded to %s" %(PORT)) 
-    server.listen(5) #accepting incoming connections
-    print("socket listening")
-    # print("IP: " + socket.gethostbyname(socket.gethostname()))
-    while True:
-        try: 
-            clientsocket, address = server.accept() #accepting incoming connection 
-            print("Accepted connection from" , address)
+                client = Client(clientsocket, address)  # Create a new client instance
+                with client_lock:
+                    clients[address] = client  # store client info
+                newthread = threading.Thread(target=handling_client, args=(clientsocket,address))
+                newthread.daemon = True
+                newthread.start()
+                #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
+                #instead of breaking loop we have to continue handling for more connections, better done now than later.
+                #handling_client(clientsocket, address) 
+            except Exception as e:
+                print(f"Error while handling client: {e}")   
 
-            client = Client(clientsocket, address)  # Create a new client instance
-            clients[address] = client  # store client info
-            #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
-            #instead of breaking loop we have to continue handling for more connections, better done now than later.
-            handling_client(clientsocket, address) 
-        except Exception as e:
-            print(f"Error while handling client: {e}")
+    except Exception as e:
+        print("Error creating socket:", e)
+    finally:
+            server.close()
+            print("Server closed")      
 
 def handling_client(clientsocket, address):
     print("handling_client called for:", clientsocket.getpeername())  # checking which client is connected
@@ -85,8 +88,9 @@ def handling_client(clientsocket, address):
                     break 
     finally:
         clientsocket.close()
+        with client_lock:
+            del clients[clientsocket]
         print("Closed connection by", address)
-        del clients[address]
 
 def processing_data(clientsocket, data, address):
     print("data received:", data)
