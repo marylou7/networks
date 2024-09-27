@@ -10,13 +10,15 @@ PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
 client_lock = threading.Lock() #locking to access 
 
-#server socket
-def start_server():
-#AF.INET6 sosocket uses IPv6
-#SOCK stream so socket uses TCP
-# loop to keep looping until interrupted
+class Server:
+
+ #server socket
+ def start_server():
+  #AF.INET6 sosocket uses IPv6
+ #SOCK stream so socket uses TCP
+ # loop to keep looping until interrupted
     
-    try:
+     try:
         server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
         print("socket created")
         server.bind((HOST, PORT))
@@ -41,9 +43,9 @@ def start_server():
             except Exception as e:
                 print(f"Error while handling client: {e}")   
 
-    except Exception as e:
+     except Exception as e:
         print("Error creating socket:", e)
-    finally:
+     finally:
             server.close()
             print("Server closed")      
 
@@ -147,41 +149,14 @@ def processing_data(clientsocket, data, address):
             # Unknown command if it is not in the list of known ones
             error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
             clientsocket.send(error_message.encode())
-    return True
-        # idk what this is and whether we need it? commenting it out for now
-    ''' # ignoring initial HexChat nickname and handling manual one
-        if not clients[clientsocket].get('initial_nick_set'):
+    return True 
 
-            clients[clientsocket]['initial_nick_set'] = True
-            print(f"ignoring nickname '{nickname}' ignored")
-        else:
-    # setting manually changed nickname
-            clients[clientsocket]['nickname'] = nickname
-            print(f"Manual nickname set to {nickname}")
-
-            # sending welcome message after manual nickname is set
-            if clients[clientsocket].get('registered') is False: 
-
-                welcomeMessage(clientsocket, clients[clientsocket]['nickname'])
-                clients[clientsocket]['registered'] = True  
-                print(f"Client {clients[clientsocket]['nickname']} is now registered.")
-
-    # changing manual nickname after registration
-    if clients[clientsocket].get('registered') and 'NICK' in line:
-        new_nickname = line.split()[1]
-
-        if new_nickname != clients[clientsocket]['nickname']:  # if new nickname
-            clients[clientsocket]['nickname'] = new_nickname
-            print(f"Nickname changed to {new_nickname}")'''
- 
-     
-
-# check a nickname to make sure it is valid
+ # check a nickname to make sure it is valid
 def valid_nickname_check(nickname):
     #IRC standard: nick has to start with letter and contain letters, digits, -, and _
     return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
 
-# check nickname against other nicknames on the server
+ # check nickname against other nicknames on the server
 def check_other_nicknames(clientsocket, nickname):
     # loop through all nicknames of clients in the dictionary
     if bool(clients):
@@ -195,7 +170,7 @@ def check_other_nicknames(clientsocket, nickname):
     return True
     
 
-# erroneous nickname error
+ # erroneous nickname error
 def invalid_nickname_feedback(clientsocket, nickname):
     error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname\r\n"
     clientsocket.send(error_message.encode())
@@ -209,13 +184,12 @@ def PING(client):
     except socket.error as e: 
         print(f"error sending PING: {e}")
 
-#helper function to parse messages received from socket to strings
+ #helper function to parse messages received from socket to strings
 def parse_message(data):
     return data.decode('utf-8').strip()
 
-
-# display a welcome message to the user
-# created a list of all the messages that show at the start of the connection
+ # display a welcome message to the user
+ # created a list of all the messages that show at the start of the connection
 def welcomeMessage(clientsocket, nickname):
     
     hostname = socket.gethostname()  # get the server hostname
@@ -224,7 +198,7 @@ def welcomeMessage(clientsocket, nickname):
         f":{hostname} 001 {nickname} :Hi, welcome to IRC",
         f":{hostname} 002 {nickname} :Your host is {hostname}, running version 1",
         f":{hostname} 003 {nickname} :This server was created sometime",
-        f":{hostname} 004 {nickname} {hostname} version 1",
+        f":{hostname} 004 {nickname} :{hostname} version 1",
         f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
         f":{hostname} 422 {nickname} :MOTD File is missing"
     ]
@@ -259,7 +233,6 @@ def is_valid_message(message):
 # client choosing username and real name
 #client join channels 
 
-
 #CLIENT CLASS
 class Client:
     def __init__(self, clientsocket, clientAddress):  # initialise the client class with socket and address
@@ -279,4 +252,4 @@ class Client:
 #client messages
 #client private messages 
 
-start_server()
+Server.start_server()
