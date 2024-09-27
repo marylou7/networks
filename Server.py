@@ -4,50 +4,58 @@ import threading
 import time
 import select
 
-
-'''Pings - server sends pings at regular intervals
-    Server should not repsond to pings but rely on pings coming from the other end to ensure connection is alive
-    if it doesn't get a response, it should then disconnect'''
-
 # create global variables
 HOST = "::1" # IPv6 connection 
 PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
+client_lock = threading.Lock() #locking to access 
 
-#server socket
-def start_server():
-#AF.INET6 sosocket uses IPv6
-#SOCK stream so socket uses TCP
-# loop to keep looping until interrupted
-    
-    try:
-        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+class Server:
+
+ #server socket
+ def start_server():
+     
+ # loop to keep looping until interrupted
+     try:
+        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)   #AF.INET6 sosocket uses IPv6  #SOCK stream so socket uses TCP
         print("socket created")
-    except socket.err as err:
-        print("error creating socket")
+        server.bind((HOST, PORT)) # binding  socket to specified HOST & PORT
+        print ("socket binded to %s" %(PORT)) 
+        server.listen(5) #accepting incoming connections
+        print("socket listening")
+        # print("IP: " + socket.gethostbyname(socket.gethostname()))
+        while True:
+            try: 
+                clientsocket, address = server.accept() #accepting incoming connection 
+                print("Accepted connection from" , address)
 
-    server.bind((HOST, PORT))
-    print ("socket binded to %s" %(PORT)) 
-    server.listen(5) #accepting incoming connections
-    print("socket listening")
-    # print("IP: " + socket.gethostbyname(socket.gethostname()))
-    while True:
-        try: 
-            clientsocket, address = server.accept() #accepting incoming connection 
-            print("Accepted connection from" , address)
+                client = Client(clientsocket, address)  # Create a new client instance
 
-            client = Client(clientsocket, address)  # Create a new client instance
-            clients[address] = client  # store client info
-            #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
-            #instead of breaking loop we have to continue handling for more connections, better done now than later.
-            handling_client(clientsocket, address) 
-        except Exception as e:
-            print(f"Error while handling client: {e}")
+                # use of client_lock to making sure the thread is safe to access to clients dictionary
+                with client_lock:
+                    clients[address] = client  # store client info
+                #making a new thread to handle client, to allow for multiple concurrent clients
+                newthread = threading.Thread(target=handling_client, args=(clientsocket,address))
+                newthread.daemon = True #making sure thread exits when main program does
+                newthread.start() #new thread to handle clients
+
+                #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
+                #handling_client(clientsocket, address) 
+
+            except Exception as e:
+                print(f"Error while handling client: {e}")   
+
+     except Exception as e:
+        print("Error creating socket:", e)
+        
+     finally:
+            server.close()
+            print("Server closed")      
 
 def handling_client(clientsocket, address):
     print("handling_client called for:", clientsocket.getpeername())  # checking which client is connected
     
-    last_activity_time = time.time()  # trracks the last time we received anything from client
+    last_activity_time = time.time()  # tracks the last time we received anything from client
     ping_interval = 20  # time for sending PING if no activity from the client
     pong_timeout = 60  # timeout for waiting for PONG or anything else
     
@@ -64,10 +72,11 @@ def handling_client(clientsocket, address):
                 print(f"No activity from {address} for {pong_timeout} seconds, disconnecting...")
                 break  # disconnect the client
             
+            #select to check if there is data available to read on the client socket
             readable, _, _ = select.select([clientsocket], [], [], 5)
             if readable:
                 try:
-                    data = clientsocket.recv(1024)
+                    data = clientsocket.recv(1024) #data up to 1024
                     if data:
                         message = parse_message(data)
                         print(f"Received message from {address}: {message}")
@@ -85,14 +94,16 @@ def handling_client(clientsocket, address):
                     break 
     finally:
         clientsocket.close()
+        with client_lock:
+            del clients[clientsocket]
         print("Closed connection by", address)
-        del clients[address]
 
 def processing_data(clientsocket, data, address):
     print("data received:", data)
     lines = data.splitlines()
     
     for line in lines:  # handle multiple lines
+        #handling user command
         if 'USER' in line:
             split = line.split()
             user = split.index('USER')
@@ -102,11 +113,13 @@ def processing_data(clientsocket, data, address):
         elif 'CAP' in line:
             pass  # Handle CAP if needed
         
+        #handling ping command 
         elif 'PING' in line:
             response = f":{socket.gethostname()} PONG {socket.gethostname()} :{line.split()[1]}"
             clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
             print(f"Sent: {response}")
 
+        #handling nick command 
         elif 'NICK' in line:
             split = line.split()
             nick = split.index('NICK')
@@ -124,11 +137,11 @@ def processing_data(clientsocket, data, address):
                 namechange = f":{clients[address].nickname}!{clients[address].username}@{HOST} NICK {nickname}"
                 clientsocket.send(f"{namechange}\r\n".encode('utf-8'))
                 clients[address].nickname = nickname
-        
+        #handling pong command
         elif 'PONG' in line:  # respond to PONG
             print(f"PONG received from {address}")
             last_pong_time = time.time()  # reset the pong time when PONG received
-
+        #handling quit 
         elif line.startswith('QUIT'):
             # close the server
             
@@ -143,41 +156,14 @@ def processing_data(clientsocket, data, address):
             # Unknown command if it is not in the list of known ones
             error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
             clientsocket.send(error_message.encode())
-    return True
-        # idk what this is and whether we need it? commenting it out for now
-    ''' # ignoring initial HexChat nickname and handling manual one
-        if not clients[clientsocket].get('initial_nick_set'):
+    return True 
 
-            clients[clientsocket]['initial_nick_set'] = True
-            print(f"ignoring nickname '{nickname}' ignored")
-        else:
-    # setting manually changed nickname
-            clients[clientsocket]['nickname'] = nickname
-            print(f"Manual nickname set to {nickname}")
-
-            # sending welcome message after manual nickname is set
-            if clients[clientsocket].get('registered') is False: 
-
-                welcomeMessage(clientsocket, clients[clientsocket]['nickname'])
-                clients[clientsocket]['registered'] = True  
-                print(f"Client {clients[clientsocket]['nickname']} is now registered.")
-
-    # changing manual nickname after registration
-    if clients[clientsocket].get('registered') and 'NICK' in line:
-        new_nickname = line.split()[1]
-
-        if new_nickname != clients[clientsocket]['nickname']:  # if new nickname
-            clients[clientsocket]['nickname'] = new_nickname
-            print(f"Nickname changed to {new_nickname}")'''
- 
-     
-
-# check a nickname to make sure it is valid
+ # check a nickname to make sure it is valid
 def valid_nickname_check(nickname):
     #IRC standard: nick has to start with letter and contain letters, digits, -, and _
     return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
 
-# check nickname against other nicknames on the server
+ # check nickname against other nicknames on the server
 def check_other_nicknames(clientsocket, nickname):
     # loop through all nicknames of clients in the dictionary
     if bool(clients):
@@ -191,7 +177,7 @@ def check_other_nicknames(clientsocket, nickname):
     return True
     
 
-# erroneous nickname error
+ # erroneous nickname error
 def invalid_nickname_feedback(clientsocket, nickname):
     error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname\r\n"
     clientsocket.send(error_message.encode())
@@ -205,13 +191,12 @@ def PING(client):
     except socket.error as e: 
         print(f"error sending PING: {e}")
 
-#helper function to parse messages received from socket to strings
+ #helper function to parse messages received from socket to strings
 def parse_message(data):
     return data.decode('utf-8').strip()
 
-
-# display a welcome message to the user
-# created a list of all the messages that show at the start of the connection
+ # display a welcome message to the user
+ # created a list of all the messages that show at the start of the connection
 def welcomeMessage(clientsocket, nickname):
     
     hostname = socket.gethostname()  # get the server hostname
@@ -220,19 +205,40 @@ def welcomeMessage(clientsocket, nickname):
         f":{hostname} 001 {nickname} :Hi, welcome to IRC",
         f":{hostname} 002 {nickname} :Your host is {hostname}, running version 1",
         f":{hostname} 003 {nickname} :This server was created sometime",
-        f":{hostname} 004 {nickname} {hostname} version 1",
+        f":{hostname} 004 {nickname} :{hostname} version 1",
         f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
         f":{hostname} 422 {nickname} :MOTD File is missing"
     ]
     
      # send each welcome message to the client
     for message in welcomeMessages:
-        clientsocket.sendall(f"{message}\r\n".encode('utf-8'))
-      
+        if is_valid_message(message): # use the validation function before sending
+            print(f"Sending valid message: {message}")
+            clientsocket.sendall(f"{message}\r\n".encode('utf-8'))
+        else:
+            print(f"Garbage message detected: {message}")
+            continue
+
+
+def is_valid_message(message):
+    # checks if the message matches the exact IRC message format:
+    # e.g. :hostname 001 nickname :Welcome to the IRC server
+
+    # the regex pattern for the message format
+    pattern = r'^:(\S+) (\d{3}) (\S+) :(.+)$'
+    
+    # compare message against the pattern
+    match = re.match(pattern, message)
+    
+    if match:
+        return True
+    else:
+        return False
+    
+    
 # client connection 
 # client choosing username and real name
 #client join channels 
-
 
 #CLIENT CLASS
 class Client:
@@ -253,4 +259,4 @@ class Client:
 #client messages
 #client private messages 
 
-start_server()
+Server.start_server()
