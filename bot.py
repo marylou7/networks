@@ -56,53 +56,69 @@ def sendMsg(message, target):
     #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
 
 
-
 # Retaining the initial information sent by miniircd about the channel and its users
 def storeInitialInfo():
-    
-    initialFile = open("initialInfo.txt","w") # open 'initialInfo.txt' <- this file will store the initial info
-    initial = getText()
-    initialText = f'Initial information send by miniircd about the channel: {initial} \n'
-    #print(f'Initial information send by miniircd about the channel: {initial}')
-    initialFile.write(initialText + '\n')
-    
-    # summarise the initial information (host, channel name, running version, users + services)
-    initialFile.write('Summary of the initial information sent by miniircd: \n')
-    
-    # host:
-    host = f'The host is: {socket.gethostname()} \n'
-    #print(host)
-    initialFile.write(host)
-    
-    # channel name:
-    splitText = initialText.split('#')
-    #print(splitText)
-    channelSplit = splitText[3]
-    slicePlace = channelSplit.find(":")
-    channelName = channelSplit[:slicePlace]
-    #print(channelName)
-    initialFile.write(f'Channel name: {channelName} \n')
-    
-    # running version:
-    splitText = initialText.split(',')
-    split2 = splitText[2]
-    runSplit = split2.find(":")
-    runningVerison = split2[1:runSplit]
-    initialFile.write(runningVerison + '\n')
-    
-    # users + services:
-    splitText = initialText.split(':')
-    #print(splitText)
-    usersServices = splitText[12] + ' ' + splitText[13]
-    initialFile.write(usersServices + '\n')
-    
-    initialFile.close() # closes the initial file
+    initialInfo = getText() #initial info is stored in the variable 'initialInfo'
+    #print(initialInfo)
+    return initialInfo
 
+# function to return host name
+def getHostName():
+    return socket.gethostname()
+
+# function to get users of the channel 'test'
+def getUsers():
+    #channelUsers = [] # list of users
+    # use NAMES command to get all nicknames that are visible on the channel 'test'
+    botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
+    names = getText()
+    #print(names)
+    str(names)
+    users = names[3:]
+    #print(users)
+    index = str(users).find(":")
+    #print(index)
+    index2 = str(users).find(chr(92))
+    #print(chr(92))
+    #print(index2)
+    users = str(users[index-1:index2-2])
+    #print(users)
+    users = users[2:-1]
+    #print(users)
+    channelUsers = list(users.split(" "))
+    return channelUsers
+    
+    '''index = str(names).find("#") # slice name string to just include the user info
+    #print(index)
+    users = str(names)
+    users = users[3:index-3]
+    print(users)
+    channelUsers = f'Users: {users}'
+    print(channelUsers)
+    
+    channelUsers = list(users.split(" "))'''
+
+
+# function to get the channel name
+def getChannel():
+    # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
+    botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
+    names = getText()
+    index = str(names).find("#")
+    channel = str(names)
+    index1 = channel[index:]
+    index2 = str(index1).find(":")
+    channelName = channel[index:(index+index2)]
+    return channelName
 
 log_in()
-storeInitialInfo()
+print(storeInitialInfo())
+
 
 sendMsg("Obtenez un enfant incendié", "#test") # sends a message to the test channel
+
+print(getUsers())
+print(getChannel())
 
 
 
