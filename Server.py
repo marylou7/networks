@@ -14,14 +14,12 @@ class Server:
 
  #server socket
  def start_server():
-  #AF.INET6 sosocket uses IPv6
- #SOCK stream so socket uses TCP
+     
  # loop to keep looping until interrupted
-    
      try:
-        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
+        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)   #AF.INET6 sosocket uses IPv6  #SOCK stream so socket uses TCP
         print("socket created")
-        server.bind((HOST, PORT))
+        server.bind((HOST, PORT)) # binding  socket to specified HOST & PORT
         print ("socket binded to %s" %(PORT)) 
         server.listen(5) #accepting incoming connections
         print("socket listening")
@@ -32,19 +30,24 @@ class Server:
                 print("Accepted connection from" , address)
 
                 client = Client(clientsocket, address)  # Create a new client instance
+
+                # use of client_lock to making sure the thread is safe to access to clients dictionary
                 with client_lock:
                     clients[address] = client  # store client info
+                #making a new thread to handle client, to allow for multiple concurrent clients
                 newthread = threading.Thread(target=handling_client, args=(clientsocket,address))
-                newthread.daemon = True
-                newthread.start()
+                newthread.daemon = True #making sure thread exits when main program does
+                newthread.start() #new thread to handle clients
+
                 #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
-                #instead of breaking loop we have to continue handling for more connections, better done now than later.
                 #handling_client(clientsocket, address) 
+
             except Exception as e:
                 print(f"Error while handling client: {e}")   
 
      except Exception as e:
         print("Error creating socket:", e)
+        
      finally:
             server.close()
             print("Server closed")      
@@ -52,7 +55,7 @@ class Server:
 def handling_client(clientsocket, address):
     print("handling_client called for:", clientsocket.getpeername())  # checking which client is connected
     
-    last_activity_time = time.time()  # trracks the last time we received anything from client
+    last_activity_time = time.time()  # tracks the last time we received anything from client
     ping_interval = 20  # time for sending PING if no activity from the client
     pong_timeout = 60  # timeout for waiting for PONG or anything else
     
@@ -69,10 +72,11 @@ def handling_client(clientsocket, address):
                 print(f"No activity from {address} for {pong_timeout} seconds, disconnecting...")
                 break  # disconnect the client
             
+            #select to check if there is data available to read on the client socket
             readable, _, _ = select.select([clientsocket], [], [], 5)
             if readable:
                 try:
-                    data = clientsocket.recv(1024)
+                    data = clientsocket.recv(1024) #data up to 1024
                     if data:
                         message = parse_message(data)
                         print(f"Received message from {address}: {message}")
@@ -99,6 +103,7 @@ def processing_data(clientsocket, data, address):
     lines = data.splitlines()
     
     for line in lines:  # handle multiple lines
+        #handling user command
         if 'USER' in line:
             split = line.split()
             user = split.index('USER')
@@ -108,11 +113,13 @@ def processing_data(clientsocket, data, address):
         elif 'CAP' in line:
             pass  # Handle CAP if needed
         
+        #handling ping command 
         elif 'PING' in line:
             response = f":{socket.gethostname()} PONG {socket.gethostname()} :{line.split()[1]}"
             clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
             print(f"Sent: {response}")
 
+        #handling nick command 
         elif 'NICK' in line:
             split = line.split()
             nick = split.index('NICK')
@@ -130,11 +137,11 @@ def processing_data(clientsocket, data, address):
                 namechange = f":{clients[address].nickname}!{clients[address].username}@{HOST} NICK {nickname}"
                 clientsocket.send(f"{namechange}\r\n".encode('utf-8'))
                 clients[address].nickname = nickname
-        
+        #handling pong command
         elif 'PONG' in line:  # respond to PONG
             print(f"PONG received from {address}")
             last_pong_time = time.time()  # reset the pong time when PONG received
-
+        #handling quit 
         elif line.startswith('QUIT'):
             # close the server
             
