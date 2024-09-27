@@ -28,11 +28,11 @@ if len(sys.argv) > 0:
             i += 1
             HOST = str(sys.argv[i])
 
-print(NICK)
-print(PORT)
-print(CHANNEL)
+#print(NICK)
+#print(PORT)
+#print(CHANNEL)
 
-print(socket.gethostname())
+#print(socket.gethostname())
 
 class Bot:
     
