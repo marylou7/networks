@@ -9,6 +9,7 @@ serverName = 'localHost IPv6'
 HOST = '::1' #host name
 PORT = 6667 #port number
 NICK = 'Ludovic' #sets default nickname for bot
+CHANNEL = '#hello'
 
 if len(sys.argv) > 0:
     for i in range(1, len(sys.argv)):
@@ -124,22 +125,24 @@ class Bot:
         channelName = channel[index:(index+index2)]
         return channelName
 
-Bot.log_in()
-print(Bot.storeInitialInfo(Bot))
+try:
+    botSock.connect(HOST, PORT)
+    Bot.log_in()
+    print(Bot.storeInitialInfo(Bot))
 
 
-Bot.sendMsg(f"Bonjour, je m'appelle {Bot.getNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
+    Bot.sendMsg(f"Bonjour, je m'appelle {Bot.getNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
 
-print(Bot.getUsers(Bot))
-print(Bot.getChannel(Bot))
-
-while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
-    text = Bot.getText()
-    print(text) #any recieved text is printed for debugging purposes
+    print(Bot.getUsers(Bot))
+    print(Bot.getChannel(Bot))
 
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
-        text = getText()
+        text = Bot.getText()
         print(text) #any recieved text is printed for debugging purposes
+
+        while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
+            text = getText()
+            print(text) #any recieved text is printed for debugging purposes
 except Exception as e:
     print("port indisponible ou n'existe pas")
 finally:
