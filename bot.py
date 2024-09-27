@@ -1,5 +1,6 @@
 import socket
 import time
+import sys
 
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
@@ -7,10 +8,30 @@ serverName = 'localHost IPv6'
 
 HOST = '::1' #host name
 PORT = 6667 #port number
-print(socket.gethostname())
 NICK = 'Ludovic' #sets default nickname for bot
 
-botSock.connect((HOST, PORT)) #bot connects to correct server
+if len(sys.argv) > 0:
+    for i in range(1, len(sys.argv)):
+        splitText = sys.argv[i].split(" ")
+        print(splitText)
+        if sys.argv[i].find('port') != -1:
+            i += 1
+            PORT = int(sys.argv[i])
+        elif sys.argv[i].find('name') != -1:
+            i += 1
+            NICK = str(sys.argv[i])
+        elif sys.argv[i].find('channel') != -1:
+            i += 1
+            CHANNEL = str(sys.argv[i])
+        elif sys.argv[i].find('host') != -1:
+            i += 1
+            HOST = str(sys.argv[i])
+
+print(NICK)
+print(PORT)
+print(CHANNEL)
+
+print(socket.gethostname())
 
 
 # VVV now antiquated code from initial attempts to connect bot to hexchat VVV
@@ -31,6 +52,7 @@ def log_in():
     time.sleep(0.1)
     botSock.send(bytes("CAP END\r\n", 'UTF-8')) #close CAP
     time.sleep(0.1)
+    botSock.send((f":{NICK}001{NICK} :Hi, welcome to IRC server\r\n").encode())
     botSock.send(bytes("JOIN #test\r\n", "UTF-8")) #test channel is joined
     time.sleep(0.1)
 
@@ -98,15 +120,19 @@ def storeInitialInfo():
     
     initialFile.close() # closes the initial file
 
+try:
+    botSock.connect((HOST, PORT)) #bot connects to correct server
 
-log_in()
-storeInitialInfo()
+    log_in()
+    #storeInitialInfo()
 
-sendMsg("Obtenez un enfant incendié", "#test") # sends a message to the test channel
+    sendMsg("Obtenez un enfant incendié", "#test") # sends a message to the test channel
 
-
-
-while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
-    text = getText()
-    print(text) #any recieved text is printed for debugging purposes
-
+    while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
+        text = getText()
+        print(text) #any recieved text is printed for debugging purposes
+except Exception as e:
+    print("port indisponible ou n'existe pas")
+finally:
+    botSock.close()
+    print("Au Revoir")
