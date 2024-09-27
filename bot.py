@@ -1,5 +1,6 @@
 import socket
 import time
+import sys
 
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
@@ -7,9 +8,30 @@ serverName = 'localHost IPv6'
 
 HOST = '::1' #host name
 PORT = 6667 #port number
-print(socket.gethostname())
+NICK = 'Ludovic' #sets default nickname for bot
 
-botSock.connect((HOST, PORT)) #bot connects to correct server
+if len(sys.argv) > 0:
+    for i in range(1, len(sys.argv)):
+        splitText = sys.argv[i].split(" ")
+        print(splitText)
+        if sys.argv[i].find('port') != -1:
+            i += 1
+            PORT = int(sys.argv[i])
+        elif sys.argv[i].find('name') != -1:
+            i += 1
+            NICK = str(sys.argv[i])
+        elif sys.argv[i].find('channel') != -1:
+            i += 1
+            CHANNEL = str(sys.argv[i])
+        elif sys.argv[i].find('host') != -1:
+            i += 1
+            HOST = str(sys.argv[i])
+
+print(NICK)
+print(PORT)
+print(CHANNEL)
+
+print(socket.gethostname())
 
 class Bot:
     
@@ -89,6 +111,7 @@ class Bot:
         channelUsers = list(users.split(" "))
         return channelUsers
     
+
 # function to get the channel name
     def getChannel(self):
         # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
@@ -105,7 +128,7 @@ Bot.log_in()
 print(Bot.storeInitialInfo(Bot))
 
 
-Bot.sendMsg(f"Bonjour, je m'appelle {Bot.getNick()} et je suis chatbot sur ce serveur", "#test") # sends a message to the test channel
+Bot.sendMsg(f"Bonjour, je m'appelle {Bot.getNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
 
 print(Bot.getUsers(Bot))
 print(Bot.getChannel(Bot))
@@ -114,3 +137,11 @@ while 1: #while loop prevents bot from disconnecting once it runs out of preset 
     text = Bot.getText()
     print(text) #any recieved text is printed for debugging purposes
 
+    while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
+        text = getText()
+        print(text) #any recieved text is printed for debugging purposes
+except Exception as e:
+    print("port indisponible ou n'existe pas")
+finally:
+    botSock.close()
+    print("Au Revoir")
