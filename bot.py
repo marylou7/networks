@@ -59,27 +59,66 @@ def sendMsg(message, target):
 # Retaining the initial information sent by miniircd about the channel and its users
 def storeInitialInfo():
     initialInfo = getText() #initial info is stored in the variable 'initialInfo'
+    #print(initialInfo)
+    return initialInfo
 
-def getInitialInfo():
-    return getInitialInfo
-
+# function to return host name
 def getHostName():
     return socket.gethostname()
 
+# function to get users of the channel 'test'
 def getUsers():
+    #channelUsers = [] # list of users
     # use NAMES command to get all nicknames that are visible on the channel 'test'
     botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
-    users = getText()
-    return users
+    names = getText()
+    #print(names)
+    str(names)
+    users = names[3:]
+    #print(users)
+    index = str(users).find(":")
+    #print(index)
+    index2 = str(users).find(chr(92))
+    #print(chr(92))
+    #print(index2)
+    users = str(users[index-1:index2-2])
+    #print(users)
+    users = users[2:-1]
+    #print(users)
+    channelUsers = list(users.split(" "))
+    return channelUsers
+    
+    '''index = str(names).find("#") # slice name string to just include the user info
+    #print(index)
+    users = str(names)
+    users = users[3:index-3]
+    print(users)
+    channelUsers = f'Users: {users}'
+    print(channelUsers)
+    
+    channelUsers = list(users.split(" "))'''
 
+
+# function to get the channel name
+def getChannel():
+    # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
+    botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
+    names = getText()
+    index = str(names).find("#")
+    channel = str(names)
+    index1 = channel[index:]
+    index2 = str(index1).find(":")
+    channelName = channel[index:(index+index2)]
+    return channelName
 
 log_in()
-storeInitialInfo()
+print(storeInitialInfo())
 
 
 sendMsg("Obtenez un enfant incendié", "#test") # sends a message to the test channel
 
-#print(getUsers())
+print(getUsers())
+print(getChannel())
 
 
 
