@@ -9,6 +9,7 @@ HOST = "::1" # IPv6 connection
 PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
 client_lock = threading.Lock() #locking to access 
+channels = {} # store channels in dictinary
 
 class Server:
 
@@ -93,9 +94,11 @@ def handling_client(clientsocket, address):
                     print(f"Error with getting data: {e}")
                     break 
     finally:
-        clientsocket.close()
         with client_lock:
-            del clients[clientsocket]
+            if clientsocket in clients:
+                del clients[clientsocket]
+        clientsocket.close()
+
         print("Closed connection by", address)
 
 def processing_data(clientsocket, data, address):
@@ -121,26 +124,33 @@ def processing_data(clientsocket, data, address):
 
         #handling nick command 
         elif 'NICK' in line:
-            split = line.split()
-            nick = split.index('NICK')
-            nickname = split[nick + 1]  # nickname will be after NICK
-            if not check_other_nicknames(clientsocket, nickname):
-                return
-            if not valid_nickname_check(nickname):
-                invalid_nickname_feedback(clientsocket, nickname)
-                return
-             # if it is a valid nickname, change it, checking first whether it is a setting up nickname, or a change later
-            if clients[address].nickname is None:  # if nickname has not already been set
-                welcomeMessage(clientsocket, nickname)  # call function to display welcome message
-                clients[address].nickname = nickname
-            else:
-                namechange = f":{clients[address].nickname}!{clients[address].username}@{HOST} NICK {nickname}"
-                clientsocket.send(f"{namechange}\r\n".encode('utf-8'))
-                clients[address].nickname = nickname
+            parts = line.split()
+            if len(parts) > 1:
+                nickname = parts[1]
+                if check_other_nicknames(clientsocket, address, nickname):
+                    if valid_nickname_check(nickname):
+                        update_nickname(clientsocket, address, nickname)
+                    else:
+
+                        invalid_nickname_feedback(clientsocket, nickname)
+                else:
+                    error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
+                    clientsocket.sendall(error_message.encode())
+            else:   
+                error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
+                clientsocket.sendall(error_message.encode())
+
+
         #handling pong command
         elif 'PONG' in line:  # respond to PONG
             print(f"PONG received from {address}")
             last_pong_time = time.time()  # reset the pong time when PONG received
+
+        #handling channel joining
+        elif line.startswith('JOIN'):
+            channel_name = line.split()[1]
+            join_channel(clientsocket, address, channel_name)
+
         #handling quit 
         elif line.startswith('QUIT'):
             # close the server
@@ -158,25 +168,50 @@ def processing_data(clientsocket, data, address):
             clientsocket.send(error_message.encode())
     return True 
 
+
+def update_nickname(clientsocket, address, nickname):
+
+    current_nickname = clients[address].nickname
+
+    if current_nickname and current_nickname != nickname:
+        name_change_message = f":{current_nickname}!{clients[address].username}@{HOST} NICK :{nickname}\r\n"
+        clientsocket.send(name_change_message.encode('utf-8'))
+    elif not current_nickname:
+        welcomeMessage(clientsocket, nickname)
+    clients[address].nickname = nickname
+
+
+
  # check a nickname to make sure it is valid
 def valid_nickname_check(nickname):
     #IRC standard: nick has to start with letter and contain letters, digits, -, and _
     return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
 
- # check nickname against other nicknames on the server
-def check_other_nicknames(clientsocket, nickname):
-    # loop through all nicknames of clients in the dictionary
-    if bool(clients):
-        for x in clients.values():
-            #print(x.nickname)
-            # if given nickname matches an already given nickanme
-            if nickname == x.nickname:
+def check_other_nicknames(clientsocket, address, nickname):
+    
+    with client_lock:
+        #checking if current client is in dictionary
+        current_client = clients.get(address)
+        if current_client is None:
+            print(f"No client found for address {address}. This shouldn't happen right after connection and registration.")
+            return False  # Early exit if no client is found to prevent further errors
+
+        #if current client sets nickname to same value, ignore
+        if current_client.nickname == nickname:
+            same_nick_message = f":{socket.gethostname()} NOTICE {nickname} :You have already set your nickname to {nickname}\r\n"
+            clientsocket.send(same_nick_message.encode())
+            return False
+        
+        #checking other clients for nickname clashes
+        for addr, client_info in clients.items():
+            if client_info.nickname == nickname and addr != address:
                 error_message = f":{socket.gethostname()} 433 * {nickname} :Nickname is already in use\r\n"
                 clientsocket.send(error_message.encode())
                 return False
-    return True
-    
 
+        return True     #no issues set nickname
+
+    
  # erroneous nickname error
 def invalid_nickname_feedback(clientsocket, nickname):
     error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname\r\n"
@@ -234,11 +269,56 @@ def is_valid_message(message):
         return True
     else:
         return False
-    
-    
-# client connection 
-# client choosing username and real name
-#client join channels 
+
+
+def join_channel(clientsocket, address, channel_name):
+    global channels
+
+    #if channel dont exist make new one
+    if channel_name not in channels:
+        channels[channel_name] = Channel(channel_name)
+
+    channel = channels[channel_name] #getting channel from dictionary 
+
+    #client joins channel
+    if channel.add_member(clients[address]):
+
+        welcome_channel_message(clientsocket, channel_name, channel)
+        #notifying other users in channel
+        messages = f"{clients[address].nickname} has joined {channel_name}"
+        notify_members_on_channel(channel, clientsocket, messages)
+        print(f"{clients[address].nickname} has joined {channel_name}")  
+    else:
+        print(f"Failed to add {clients[address].nickname} to {channel_name}")  
+
+
+def welcome_channel_message(clientsocket, channel_name, channel):
+
+    # Confirmation msg to client
+    join_message = f":{HOST} JOIN {channel_name}"
+    clientsocket.sendall(join_message.encode('utf-8') + b'\r\n')
+
+    #channel topic
+    topic_message = f":{HOST} 332 {clients[clientsocket.getpeername()].nickname} {channel_name} :Welcome to {channel_name}"
+    clientsocket.sendall(topic_message.encode('utf-8') + b'\r\n')
+
+    #members names in channel
+    names_list = " ".join([client.nickname for client in channel.members if client.nickname])  # making sure nickname is not None
+    names_message = f":{HOST} 353 {clients[clientsocket.getpeername()].nickname} = {channel_name} :{names_list}"
+    clientsocket.sendall(names_message.encode('utf-8') + b'\r\n')
+
+    #end of names list
+    end_names_message = f":{HOST} 366 {clients[clientsocket.getpeername()].nickname} {channel_name} :End of NAMES list"
+    clientsocket.sendall(end_names_message.encode('utf-8') + b'\r\n')
+
+
+
+def notify_members_on_channel(channel, clientsocket, messages):
+
+    for member in channel.members:
+        if member.socket != clientsocket:
+            member.socket.sendall(f":{socket.gethostname()} NOTICE {channel.name} :{messages}\r\n".encode('utf-8'))
+
 
 #CLIENT CLASS
 class Client:
@@ -255,6 +335,24 @@ class Client:
         self.nickname
         
 #CHANNEL CLASS
+
+class Channel:
+    def __init__(self, name):
+        self.name = name
+        self.members = []
+
+    def add_member(self, client):
+        if client not in self.members:
+            self.members.append(client)
+            return True
+        return False
+
+    def remove_member(self, client):
+        if client in self.members:
+            self.members.remove(client)
+            return True
+        return False
+
 
 #client messages
 #client private messages 
