@@ -151,6 +151,10 @@ def processing_data(clientsocket, data, address):
             channel_name = line.split()[1]
             join_channel(clientsocket, address, channel_name)
 
+        elif line.startswith('PART'):
+            channel_name = line.split()[1]
+            leave_channel(clientsocket, address, channel_name)
+
         #handling quit 
         elif line.startswith('QUIT'):
             # close the server
@@ -287,7 +291,8 @@ def join_channel(clientsocket, address, channel_name):
         #notifying other users in channel
         messages = f"{clients[address].nickname} has joined {channel_name}"
         notify_members_on_channel(channel, clientsocket, messages)
-        print(f"{clients[address].nickname} has joined {channel_name}")  
+        print(f"{clients[address].nickname} has joined {channel_name}") 
+
     else:
         print(f"Failed to add {clients[address].nickname} to {channel_name}")  
 
@@ -313,11 +318,44 @@ def welcome_channel_message(clientsocket, channel_name, channel):
 
 
 
-def notify_members_on_channel(channel, clientsocket, messages):
+def notify_members_on_channel(channel,clientsocket, messages):
 
     for member in channel.members:
         if member.socket != clientsocket:
             member.socket.sendall(f":{socket.gethostname()} NOTICE {channel.name} :{messages}\r\n".encode('utf-8'))
+
+def leave_channel_message(channel, client, clientsocket, reason="Leaving"):
+
+    leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}"
+    for member in channel.members:
+        member.socket.sendall(leave_message.encode('utf-8'))
+
+
+def leave_channel(clientsocket, address, channel_name):
+    global channels
+
+    if channel_name in channels:
+        channel = channels[channel_name]
+
+        if clients[address] in channel.members:
+            channel.remove_member(clients[address])
+            leave_channel_message(clientsocket, address, channel_name)  # Call with the current signature
+            print(f"{clients[address].nickname} has left {channel_name}")
+
+        else:
+            error_message = f":{HOST} 442 {channel_name} :You are not on this channel\r\n"
+            clientsocket.send(error_message.encode())
+    else:
+        error_message = f":{HOST} 403 {channel_name} :Channel does not exist\r\n"
+        clientsocket.send(error_message.encode())
+
+
+
+
+
+
+
+
 
 
 #CLIENT CLASS
