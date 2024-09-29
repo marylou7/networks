@@ -296,7 +296,7 @@ def join_channel(clientsocket, address, channel_name):
     else:
         print(f"Failed to add {clients[address].nickname} to {channel_name}")  
 
-
+#for local client channel messages
 def welcome_channel_message(clientsocket, channel_name, channel):
 
     # Confirmation msg to client
@@ -317,38 +317,46 @@ def welcome_channel_message(clientsocket, channel_name, channel):
     clientsocket.sendall(end_names_message.encode('utf-8') + b'\r\n')
 
 
-
+#for global client channel messages
 def notify_members_on_channel(channel,clientsocket, messages):
-
     for member in channel.members:
         if member.socket != clientsocket:
             member.socket.sendall(f":{socket.gethostname()} NOTICE {channel.name} :{messages}\r\n".encode('utf-8'))
 
-def leave_channel_message(channel, client, clientsocket, reason="Leaving"):
 
-    leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}"
-    for member in channel.members:
-        member.socket.sendall(leave_message.encode('utf-8'))
+#for local client channel messages
+def leave_channel_message(client, clientsocket, channel, reason="Leaving"):
+
+        leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}"
+        clientsocket.sendall(leave_message.encode('utf-8') + b'\r\n')
 
 
-def leave_channel(clientsocket, address, channel_name):
+
+def leave_channel(clientsocket, address, channel_name, reason="Leaving"):
     global channels
+
+    client = clients.get(address)  #fetch client
+
+    if not client:
+        print("Client not found.")
+        return
 
     if channel_name in channels:
         channel = channels[channel_name]
 
-        if clients[address] in channel.members:
-            channel.remove_member(clients[address])
-            leave_channel_message(clientsocket, address, channel_name)  # Call with the current signature
-            print(f"{clients[address].nickname} has left {channel_name}")
+        if client in channel.members:
+            messages = f"{clients[address].nickname} has left {channel_name}"
+            notify_members_on_channel(channel, clientsocket, messages)
+            leave_channel_message(client, clientsocket, channel, reason)  
+            channel.remove_member(client)
+            print(f"{client.nickname} has left {channel_name}")
 
         else:
-            error_message = f":{HOST} 442 {channel_name} :You are not on this channel\r\n"
+            error_message = f":{HOST} 442 {channel_name} :You're not on that channel\r\n"
             clientsocket.send(error_message.encode())
     else:
-        error_message = f":{HOST} 403 {channel_name} :Channel does not exist\r\n"
+        error_message = f":{HOST} 403 {channel_name} :No such channel\r\n"
         clientsocket.send(error_message.encode())
-
 
 
 
@@ -390,6 +398,7 @@ class Channel:
             self.members.remove(client)
             return True
         return False
+
 
 
 #client messages
