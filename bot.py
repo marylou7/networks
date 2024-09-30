@@ -1,5 +1,6 @@
 import socket
 import time
+import random
 
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
@@ -9,53 +10,74 @@ HOST = '::1' #host name
 PORT = 6667 #port number
 print(socket.gethostname())
 NICK = 'Ludovic' #sets default nickname for bot
+#global CHANNEL
+CHANNEL = ""
 
 botSock.connect((HOST, PORT)) #bot connects to correct server
 
 
-# VVV now antiquated code from initial attempts to connect bot to hexchat VVV
-"""
-botSock.send(bytes("USER " + NICK + " " + NICK + " " + NICK + " " + NICK + " :this is my bot.n", "UTF-8"))
-time.sleep(0.5)
-botSock.send(bytes('NICK ' + NICK + 'n', 'UTF-8')) 
-time.sleep(0.5)
-botSock.send(bytes('JOIN #testn', 'UTF-8'))
-time.sleep(0.5)
-"""
-
 def log_in():
-    botSock.send(bytes("CAP LS 302\r\n", "UTF-8")) #CAP command used for sign in, idk what this does but its the lynch pin holding the sign in protocol together apparently
+    sendIRC("CAP LS 302") #CAP command used for sign in, idk what this does but its the lynch pin holding the sign in protocol together apparently
     time.sleep(0.01)
-    botSock.send(bytes("NICK " + NICK + "\r\n", "UTF-8")) #nickname is requested
-    botSock.send(bytes("USER " + NICK + " 0 * :realname\r\n", "UTF-8")) #nickname is given to the bot
+    sendIRC("NICK " + NICK) #nickname is requested
+    sendIRC("USER " + NICK + " 0 * :realname") #nickname is given to the bot
     time.sleep(0.1)
-    botSock.send(bytes("CAP END\r\n", 'UTF-8')) #close CAP
+    sendIRC("CAP END") #close CAP
     time.sleep(0.1)
-    botSock.send(bytes("JOIN #test\r\n", "UTF-8")) #test channel is joined
+    joinChannel('#test')
     time.sleep(0.1)
 
     # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
 
-def getText():
-    text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc.  
-    if text.find(bytes('PING', 'UTF-8')) != -1: #if the text is a ping
-        botSock.send(bytes('PONG ' + socket.gethostname() + '\r\n', 'UTF-8')) #replies with a pong
-        print("PONG sent to server") #check if PONG is sent
-    return text
 
 def sendMsg(message, target):
-    botSock.send(bytes('PRIVMSG ' + target + ' : ' + message + '\r\n', "UTF-8"))
+    sendIRC('PRIVMSG ' + target + ' :' + message)
 
-#def sendIRC(message):
-    #botSock.send(bytes(message + '\r\n', 'UTF-8')) functions that either don't work or currently aren't in use
+def getText():
+    text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc. 
+    text = text.decode() #converts the bytes to string
+    if text.find('PING') != -1: #if the text is a ping
+        sendIRC('PONG ' + socket.gethostname()) #replies with a pong
+        print("PONG sent to server") #check if PONG is sent
+    elif text.find('PRIVMSG ' + CHANNEL + ' :!hello') != -1:
+        splitText = text.split(':')
+        splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+        name = splitText[0]
+        if random.choice([0,1]) == 0: # 50/50 chance to respond with one of two greetings
+            sendMsg('Salut, ' + name + '!', CHANNEL)
+            print('Salut, ' + name + '!')
+        else:
+            sendMsg('Bonjour, ' + name + '!', CHANNEL)
+            print('Bonjour, ' + name + '!')
+    elif text.find('PRIVMSG ' + CHANNEL + ' :!slap') != -1:
+        #here we will randomly choose a user
+        sendMsg("TEMPUSER, tu as été giflé avec une truite !", CHANNEL)
+    elif text.find('PRIVMSG ' + NICK) != -1:
+        splitText = text.split(':')
+        splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+        name = splitText[0]
+        sendMsg(getFact(), name)
+    return text
 
-#def joinChannel(channel):
-    #botSock.send(bytes('JOIN ' + channel + '\r\n', 'UTF-8'))
+def setChannel(channel):
+    global CHANNEL
+    CHANNEL = channel
+
+def sendIRC(message):
+    botSock.send(bytes(message + '\r\n', 'UTF-8'))
+
+def joinChannel(channel):
+    sendIRC('JOIN ' + channel) #functions that either don't work or currently aren't in use
+    setChannel(channel)
 
 #def ping():
     #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
 
-
+def getFact():
+    line = random.choice([0,49])
+    with open('facts.txt', 'r') as file:
+        fact = file.readline(line)
+    return fact
 
 # Retaining the initial information sent by miniircd about the channel and its users
 def storeInitialInfo():
@@ -103,8 +125,6 @@ log_in()
 storeInitialInfo()
 
 sendMsg("Obtenez un enfant incendié", "#test") # sends a message to the test channel
-
-
 
 while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
     text = getText()
