@@ -1,6 +1,9 @@
 import socket
 import time
+import random
+
 import sys
+
 
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
@@ -70,14 +73,22 @@ class Bot:
     def sendMsg(message, target):
         botSock.send(bytes('PRIVMSG ' + target + ' : ' + message + '\r\n', "UTF-8"))
 
-#def sendIRC(message):
-    #botSock.send(bytes(message + '\r\n', 'UTF-8')) functions that either don't work or currently aren't in use
+    def sendIRC(message):
+        botSock.send(bytes(message + '\r\n', 'UTF-8'))
 
-#def joinChannel(channel):
-    #botSock.send(bytes('JOIN ' + channel + '\r\n', 'UTF-8'))
+    def joinChannel(channel):
+        sendIRC('JOIN ' + channel) #functions that either don't work or currently aren't in use
+        setChannel(channel)
 
-#def ping():
-    #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
+     #def ping():
+      #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
+
+
+    def getFact():
+        line = random.choice([0,49])
+        with open('facts.txt', 'r') as file:
+            fact = file.readline(line)
+        return fact
 
 
 # Retaining the initial information sent by miniircd about the channel and its users
@@ -111,7 +122,6 @@ class Bot:
         #print(users)
         channelUsers = list(users.split(" "))
         return channelUsers
-    
 
 # function to get the channel name
     def getChannel(self):
@@ -126,7 +136,7 @@ class Bot:
         return channelName
 
 try:
-    botSock.connect(HOST, PORT)
+    botSock.connect((HOST, PORT))
     Bot.log_in()
     print(Bot.storeInitialInfo(Bot))
 
@@ -139,10 +149,7 @@ try:
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
         text = Bot.getText()
         print(text) #any recieved text is printed for debugging purposes
-
-        while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
-            text = getText()
-            print(text) #any recieved text is printed for debugging purposes
+        
 except Exception as e:
     print("port indisponible ou n'existe pas")
 finally:
