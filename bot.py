@@ -64,7 +64,7 @@ class Bot:
     # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
 
     def getText():
-        text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc.  
+        text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc.
         if text.find(bytes('PING', 'UTF-8')) != -1: #if the text is a ping
             botSock.send(bytes('PONG ' + socket.gethostname() + '\r\n', 'UTF-8')) #replies with a pong
             print("PONG sent to server") #check if PONG is sent
@@ -76,13 +76,12 @@ class Bot:
     def sendIRC(message):
         botSock.send(bytes(message + '\r\n', 'UTF-8'))
 
-    def joinChannel(channel):
-        sendIRC('JOIN ' + channel) #functions that either don't work or currently aren't in use
-        setChannel(channel)
+    def joinChannel(self, channel):
+        self.sendIRC('JOIN ' + channel) #functions that either don't work or currently aren't in use
+        self.setChannel(channel)
 
-     #def ping():
-      #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
-
+    #def ping():
+        #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
 
     def getFact():
         line = random.choice([0,49])
@@ -91,18 +90,18 @@ class Bot:
         return fact
 
 
-# Retaining the initial information sent by miniircd about the channel and its users
+    # Retaining the initial information sent by miniircd about the channel and its users
     def storeInitialInfo(self):
         initialInfo =self.getText() #initial info is stored in the variable 'initialInfo'
         #print(initialInfo)
         return initialInfo
 
-# function to return host name
+    # function to return host name
     def getHostName():
         return socket.gethostname()
 
-# function to get users of the channel 'test'
-    def getUsers(self):
+    # function to get users of the channel 'test'
+    def returnUsers(self):
         #channelUsers = [] # list of users
         # use NAMES command to get all nicknames that are visible on the channel 'test'
         botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
@@ -123,7 +122,7 @@ class Bot:
         channelUsers = list(users.split(" "))
         return channelUsers
 
-# function to get the channel name
+    # function to get the channel name
     def getChannel(self):
         # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
         botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
@@ -134,18 +133,24 @@ class Bot:
         index2 = str(index1).find(":")
         channelName = channel[index:(index+index2)]
         return channelName
+    
+    # function to return the channel name
+    def returnChannelName(self):
+        currentChannel = self.getChannel()
+        return currentChannel
 
 try:
     botSock.connect((HOST, PORT))
     Bot.log_in()
     print(Bot.storeInitialInfo(Bot))
-
+    #print(Bot.returnUsers(Bot))
 
     Bot.sendMsg(f"Bonjour, je m'appelle {Bot.getNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
-
-    print(Bot.getUsers(Bot))
-    print(Bot.getChannel(Bot))
-
+    
+    # testing for returning channel + users:
+    print(f'Channel name: {Bot.getChannel(Bot)}')
+    print(f'Users : {Bot.returnUsers(Bot)}')
+    
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
         text = Bot.getText()
         print(text) #any recieved text is printed for debugging purposes
