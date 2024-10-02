@@ -91,6 +91,7 @@ def handling_client(clientsocket, address):
                         print("No data received, closing connection.")
                         break 
                 except (socket.error, UnicodeDecodeError) as e:
+                    print(data)
                     print(f"Error with getting data: {e}")
                     break 
     finally:
@@ -149,7 +150,13 @@ def processing_data(clientsocket, data, address):
         #handling channel joining
         elif line.startswith('JOIN'):
             channel_name = line.split()[1]
-            join_channel(clientsocket, address, channel_name)
+            # if there are multiple channel names, split on commas
+            if len(channel_name.split(",")) > 1:
+                all_channel_names = channel_name.split(",")
+                for channel_name in all_channel_names:
+                    join_channel(clientsocket, address, channel_name)
+            else:
+                join_channel(clientsocket, address, channel_name)
 
         elif line.startswith('PART'):
             channel_name = line.split()[1]
@@ -158,14 +165,18 @@ def processing_data(clientsocket, data, address):
         #handling quit 
         elif line.startswith('QUIT'):
             # close the server
-            
-            if len(line.split(":")) > 1: # if there is a quit message
-                quitmessage = "Disconnected connection from " + address[0]+ ":" + str(address[1]) +" (" + line.split(":")[1] + ")"
-            else:
-                quitmessage = "Disconnected connection from " + address[0] + ":" + str(address[1]) + " (" + clients[address].username + ")"
-            print(quitmessage)
+            quit(clientsocket, address, line)
             return False
-            
+        elif line.startswith('MODE'):
+            # channel mode message
+             # channel mode
+            channel_name = line.split()[1]
+            channel_mode_message = f":{socket.gethostname()} 324 {clients[clientsocket.getpeername()].nickname} {channel_name} :+"
+            clientsocket.send(channel_mode_message.encode('utf-8') + b'\r\n')
+            pass
+        elif line.startswith('WHO'):
+            channel_name = line.split()[1]
+            who_reply(channel_name, address,clientsocket)       
         else:
             # Unknown command if it is not in the list of known ones
             error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
@@ -274,88 +285,98 @@ def is_valid_message(message):
     else:
         return False
 
+def quit(clientsocket, address, line):
+
+    if len(line.split(":")) > 1: # if there is a quit message
+        quitmessage = "Disconnected connection from " + address[0]+ ":" + str(address[1]) +" (" + line.split(":")[1] + ")\r\n"
+    else:
+        quitmessage = "Disconnected connection from " + address[0] + ":" + str(address[1]) + " (" + clients[address].username + ")\r\n"
+    print(quitmessage)
+    # send quit message to others on the server
 
 def join_channel(clientsocket, address, channel_name):
     global channels
 
-    #if channel dont exist make new one
+    #if channel not in list of channels, make a new channel and add to the dictionary
     if channel_name not in channels:
         channels[channel_name] = Channel(channel_name)
+        channels[channel_name].topic = f"Welcome to {channel_name}"
+        channels[channel_name].operator = clients[address].nickname # set channel operator to first joined
 
     channel = channels[channel_name] #getting channel from dictionary 
+    client = clients[address]
 
     #client joins channel
-    if channel.add_member(clients[address]):
-
-        welcome_channel_message(clientsocket, channel_name, channel)
-        #notifying other users in channel
-        messages = f"{clients[address].nickname} has joined {channel_name}"
-        notify_members_on_channel(channel, clientsocket, messages)
-        print(f"{clients[address].nickname} has joined {channel_name}") 
+    if channel.add_member(client):
+        # call function to actually join channel
+        join_channel_messages(clientsocket, channel_name, channel, address)
 
     else:
         print(f"Failed to add {clients[address].nickname} to {channel_name}")  
+    
 
 #for local client channel messages
-def welcome_channel_message(clientsocket, channel_name, channel):
+def join_channel_messages(clientsocket, channel_name, channel, address):
 
-    # Confirmation msg to client
-    join_message = f":{HOST} JOIN {channel_name}"
-    clientsocket.sendall(join_message.encode('utf-8') + b'\r\n')
+    # actually join the channel
+    client = clients[address]
+    join_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} JOIN {channel.name}\r\n"
+
+    # send join channel message to all members in the channel to notify them 
+    for member in channel.members:
+        member.socket.send(join_message.encode('utf-8'))
 
     #channel topic
-    topic_message = f":{HOST} 332 {clients[clientsocket.getpeername()].nickname} {channel_name} :Welcome to {channel_name}"
-    clientsocket.sendall(topic_message.encode('utf-8') + b'\r\n')
+    topic_message = f":{socket.gethostname()} 331 {clients[clientsocket.getpeername()].nickname} {channel_name} :No topic is set"
+    clientsocket.send(topic_message.encode('utf-8') + b'\r\n')
 
-    #members names in channel
     names_list = " ".join([client.nickname for client in channel.members if client.nickname])  # making sure nickname is not None
-    names_message = f":{HOST} 353 {clients[clientsocket.getpeername()].nickname} = {channel_name} :{names_list}"
-    clientsocket.sendall(names_message.encode('utf-8') + b'\r\n')
+
+    names_message = f":{socket.gethostname()} 353 {client.nickname} = {channel_name} :{names_list}"
+    clientsocket.send(names_message.encode('utf-8') + b'\r\n')
 
     #end of names list
-    end_names_message = f":{HOST} 366 {clients[clientsocket.getpeername()].nickname} {channel_name} :End of NAMES list"
-    clientsocket.sendall(end_names_message.encode('utf-8') + b'\r\n')
+    end_names_message = f":{socket.gethostname()} 366 {clients[clientsocket.getpeername()].nickname} {channel_name} :End of NAMES list"
+    clientsocket.send(end_names_message.encode('utf-8') + b'\r\n')
 
-
-#for global client channel messages
-def notify_members_on_channel(channel,clientsocket, messages):
+# for global client channel messages - dont need this - it happens in the function above automatically
+'''def notify_members_on_channel(channel,clientsocket, messages):
     for member in channel.members:
         if member.socket != clientsocket:
-            member.socket.sendall(f":{socket.gethostname()} NOTICE {channel.name} :{messages}\r\n".encode('utf-8'))
+            member.socket.sendall(f":{socket.gethostname()} NOTICE {channel.name} :{messages}\r\n".encode('utf-8'))'''
 
-
-#for local client channel messages
-def leave_channel_message(client, clientsocket, channel, reason="Leaving"):
-
-        leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}"
-        clientsocket.sendall(leave_message.encode('utf-8') + b'\r\n')
-
+# reply to the client issuing a WHO #channel_name
+def who_reply(channel_name, address,clientsocket):
+    channel = channels[channel_name]
+    print(f"nick {clients[address].nickname}, address {address}" )
+    for member in channel.members:
+        clientsocket.send(f":{socket.gethostname()} 352 {clients[address].nickname} {channel.name} {clients[address].username} {address[0]} {socket.gethostname()} {member.nickname} H :0 realname\r\n".encode('utf-8'))
+    clientsocket.send(f":{socket.gethostname()} 315 {clients[address].nickname} {channel.name} :End of WHO list\r\n".encode("utf-8"))
 
 
 def leave_channel(clientsocket, address, channel_name, reason="Leaving"):
-    global channels
-
     client = clients.get(address)  #fetch client
 
     if not client:
         print("Client not found.")
         return
 
+    # check channel exists
     if channel_name in channels:
         channel = channels[channel_name]
 
+        leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}\r\n" 
         if client in channel.members:
-            messages = f"{clients[address].nickname} has left {channel_name}"
-            notify_members_on_channel(channel, clientsocket, messages)
-            leave_channel_message(client, clientsocket, channel, reason)  
+            for member in channel.members:
+                member.socket.send(leave_message.encode('utf-8'))
             channel.remove_member(client)
             print(f"{client.nickname} has left {channel_name}")
 
         else:
-            error_message = f":{HOST} 442 {channel_name} :You're not on that channel\r\n"
+            error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel\r\n"
             clientsocket.send(error_message.encode())
     else:
-        error_message = f":{HOST} 403 {channel_name} :No such channel\r\n"
+        error_message = f":{socket.gethostname()} 403 {channel_name} :No such channel\r\n"
         clientsocket.send(error_message.encode())
 
 
@@ -386,7 +407,10 @@ class Channel:
     def __init__(self, name):
         self.name = name
         self.members = []
+        self.topic = None
+        self.operator = None
 
+    # add member to list of members if not already present
     def add_member(self, client):
         if client not in self.members:
             self.members.append(client)
@@ -398,6 +422,7 @@ class Channel:
             self.members.remove(client)
             return True
         return False
+    
 
 
 
