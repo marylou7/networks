@@ -96,10 +96,10 @@ def handling_client(clientsocket, address):
                     break 
     finally:
         with client_lock:
-            if clientsocket in clients:
-                del clients[clientsocket]
+            #if client in clients:
+            del clients[address]
+        print(clients)
         clientsocket.close()
-
         print("Closed connection by", address)
 
 def processing_data(clientsocket, data, address):
@@ -134,9 +134,6 @@ def processing_data(clientsocket, data, address):
                     else:
 
                         invalid_nickname_feedback(clientsocket, nickname)
-                else:
-                    error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
-                    clientsocket.sendall(error_message.encode())
             else:   
                 error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
                 clientsocket.sendall(error_message.encode())
