@@ -161,6 +161,25 @@ def processing_data(clientsocket, data, address):
         elif line.startswith('PART'):
             channel_name = line.split()[1]
             leave_channel(clientsocket, address, channel_name)
+        
+        #handling messages
+        elif line.startswith('PRIVMSG'):
+             parts = line.split(' ', 2)
+             if len(parts) < 3:
+                  error_message = f":{socket.gethostname()} 412 {clients[address].nickname} :No message to send\r\n"
+                  clientsocket.send(error_message.encode())
+                  return True
+              
+             receiver = parts[1]
+             message = parts[2].lstrip(':')  # remove ':' from the message
+             if receiver.startswith('#'):  # it's a message to a channel
+                 if receiver in channels:
+                     clients[address].send_channel_message(receiver, message)  # call the method in Client class
+                 else:
+                    error_message = f":{socket.gethostname()} 403 {clients[address].nickname} {receiver} :No such channel\r\n"
+                    clientsocket.send(error_message.encode())
+             else:  # it's a private message to a user
+                clients[address].send_private_message(receiver, message)  # call the method in Client class
 
         #handling quit 
         elif line.startswith('QUIT'):
@@ -400,6 +419,37 @@ class Client:
         
         self.username
         self.nickname
+    
+    def send_private_message(self, receiver, message):
+        with client_lock:
+            found = False
+            for addr, client in clients.items():
+                if client.nickname == receiver:
+                    found = True
+                    sender_nickname = self.nickname
+                    private_message = f":{sender_nickname} PRIVMSG {receiver} :{message}\r\n"
+                    client.socket.send(private_message.encode('utf-8'))
+                    break
+            
+            if not found:
+                error_message = f":{socket.gethostname()} 401 {self.nickname} {receiver} :No such nick\r\n"
+                self.socket.send(error_message.encode())
+
+    def send_channel_message(self, channel_name, message):
+        with client_lock:
+            if channel_name in channels:  # check if the channel exists
+                channel = channels[channel_name]
+                if self in channel.members: # check if the client is a member of the channel
+                    for member in channel.members:    # send message to all memebers in the channel
+                        if member.socket != self.socket:  # don't send the message back to the sender
+                            channel_message = f":{self.nickname} PRIVMSG {channel_name} :{message}\r\n"
+                            member.socket.send(channel_message.encode('utf-8'))
+                else:
+                    error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel\r\n"
+                    self.socket.send(error_message.encode())
+            else:
+                error_message = f":{socket.gethostname()} 403 {self.nickname} {channel_name} :No such channel\r\n"
+                self.socket.send(error_message.encode())
         
 #CHANNEL CLASS
 
@@ -423,10 +473,5 @@ class Channel:
             return True
         return False
     
-
-
-
-#client messages
-#client private messages 
 
 Server.start_server()
