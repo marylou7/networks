@@ -96,7 +96,7 @@ class Bot:
         return text
 
     def sendMsg(message, target):
-        botSock.send(bytes('PRIVMSG ' + target + ' : ' + message + '\r\n', "UTF-8"))
+        botSock.send(bytes('PRIVMSG ' + target + ' :' + message + '\r\n', "UTF-8"))
 
     def sendIRC(message):
         botSock.send(bytes(message + '\r\n', 'UTF-8'))
@@ -109,9 +109,9 @@ class Bot:
         #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
 
     def getFact():
-        line = random.choice([0,49])
-        with open('facts.txt', 'r') as file:
-            fact = file.readline(line)
+        lines = open('facts.txt').read().splitlines()
+        fact = random.choice(lines)
+        print(fact)
         return fact
 
 
