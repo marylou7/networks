@@ -92,7 +92,7 @@ class Bot:
             splitText = text.split(':')
             splitText = splitText[1].split('!') # splits the string to find the user name of the sender
             name = splitText[0]
-            self.sendMsg(getFact(), name)
+            self.sendMsg(Bot.getFact(), name)
         return text
 
     def sendMsg(message, target):
@@ -181,7 +181,7 @@ try:
         print(text) #any recieved text is printed for debugging purposes
         
 except Exception as e:
-    print("port indisponible ou n'existe pas")
+    print(f"port indisponible ou n'existe pas: {e}")
 finally:
     botSock.close()
     print("Au Revoir")
