@@ -117,7 +117,7 @@ class Bot:
 
     # Retaining the initial information sent by miniircd about the channel and its users
     def storeInitialInfo(self):
-        initialInfo =self.getText() #initial info is stored in the variable 'initialInfo'
+        initialInfo =self.getText(self) #initial info is stored in the variable 'initialInfo'
         #print(initialInfo)
         return initialInfo
 
@@ -129,8 +129,8 @@ class Bot:
     def returnUsers(self):
         #channelUsers = [] # list of users
         # use NAMES command to get all nicknames that are visible on the channel 'test'
-        botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
-        names =self.getText()
+        botSock.send(bytes("WHO #test\r\n", "UTF-8"))
+        names =self.getText(self)
         #print(names)
         str(names)
         users = names[3:]
@@ -150,8 +150,8 @@ class Bot:
     # function to get the channel name
     def getChannel(self):
         # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
-        botSock.send(bytes("NAMES #test\r\n", "UTF-8"))
-        names =self.getText()
+        botSock.send(bytes("WHO #test\r\n", "UTF-8"))
+        names =self.getText(self)
         index = str(names).find("#")
         channel = str(names)
         index1 = channel[index:]
