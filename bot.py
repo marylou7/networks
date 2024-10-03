@@ -63,11 +63,36 @@ class Bot:
 
     # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
 
-    def getText():
-        text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc.
-        if text.find(bytes('PING', 'UTF-8')) != -1: #if the text is a ping
-            botSock.send(bytes('PONG ' + socket.gethostname() + '\r\n', 'UTF-8')) #replies with a pong
+    def sendMsg(message, target):
+        botSock.send(bytes('PRIVMSG ' + target + ' : ' + message + '\r\n', "UTF-8"))
+
+    def sendIRC(message):
+        botSock.send(bytes(message + '\r\n', 'UTF-8'))
+
+    def getText(self):
+        text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc. 
+        text = text.decode() #converts the bytes to string
+        if text.find('PING') != -1: #if the text is a ping
+            self.sendIRC('PONG ' + socket.gethostname()) #replies with a pong
             print("PONG sent to server") #check if PONG is sent
+        elif text.find('PRIVMSG ' + CHANNEL + ' :!hello') != -1:
+            splitText = text.split(':')
+            splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+            name = splitText[0]
+            if random.choice([0,1]) == 0: # 50/50 chance to respond with one of two greetings
+                self.sendMsg('Salut, ' + name + '!', CHANNEL)
+                print('Salut, ' + name + '!')
+            else:
+                self.sendMsg('Bonjour, ' + name + '!', CHANNEL)
+                print('Bonjour, ' + name + '!')
+        elif text.find('PRIVMSG ' + CHANNEL + ' :!slap') != -1:
+            #here we will randomly choose a user
+            self.sendMsg("TEMPUSER, tu as été giflé avec une truite !", CHANNEL)
+        elif text.find('PRIVMSG ' + NICK) != -1:
+            splitText = text.split(':')
+            splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+            name = splitText[0]
+            self.sendMsg(getFact(), name)
         return text
 
     def sendMsg(message, target):
@@ -152,7 +177,7 @@ try:
     print(f'Users : {Bot.returnUsers(Bot)}')
     
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
-        text = Bot.getText()
+        text = Bot.getText(Bot)
         print(text) #any recieved text is printed for debugging purposes
         
 except Exception as e:
