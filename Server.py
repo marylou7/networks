@@ -16,15 +16,14 @@ class Server:
  #server socket
  def start_server():
      
- # loop to keep looping until interrupted
+ # loop to keep looking for more clients until interrupted
      try:
-        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)   #AF.INET6 sosocket uses IPv6  #SOCK stream so socket uses TCP
+        server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)   #AF.INET6 so socket uses IPv6  #SOCK stream so socket uses TCP
         print("socket created")
-        server.bind((HOST, PORT)) # binding  socket to specified HOST & PORT
+        server.bind((HOST, PORT)) # binding socket to specified HOST & PORT
         print ("socket binded to %s" %(PORT)) 
         server.listen(5) #accepting incoming connections
         print("socket listening")
-        # print("IP: " + socket.gethostbyname(socket.gethostname()))
         while True:
             try: 
                 clientsocket, address = server.accept() #accepting incoming connection 
@@ -39,9 +38,6 @@ class Server:
                 newthread = threading.Thread(target=handling_client, args=(clientsocket,address))
                 newthread.daemon = True #making sure thread exits when main program does
                 newthread.start() #new thread to handle clients
-
-                #clients[clientsocket] = {'address': address, 'nickname':None, 'registered': False}  #?
-                #handling_client(clientsocket, address) 
 
             except Exception as e:
                 print(f"Error while handling client: {e}")   
@@ -96,51 +92,36 @@ def handling_client(clientsocket, address):
                     break 
     finally:
         with client_lock:
-            #if client in clients:
+            # delete client so another client with same name can reconnect
             del clients[address]
-        print(clients)
         clientsocket.close()
         print("Closed connection by", address)
 
+# process data received
 def processing_data(clientsocket, data, address):
     print("data received:", data)
     lines = data.splitlines()
+    client = clients[address]
     
     for line in lines:  # handle multiple lines
         #handling user command
-        if 'USER' in line:
-            split = line.split()
-            user = split.index('USER')
-            username = split[user + 1]  # nickname will be after USER
-            clients[address].username = username
-
-        elif 'CAP' in line:
-            pass  # Handle CAP if needed
+        if line.startswith('USER'):
+            client.set_username(line)
+            welcomeMessage(clientsocket, client.nickname)
+        # cap command
+        elif line.startswith('CAP'):
+            pass  
         
         #handling ping command 
-        elif 'PING' in line:
-            response = f":{socket.gethostname()} PONG {socket.gethostname()} :{line.split()[1]}"
-            clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
-            print(f"Sent: {response}")
+        elif line.startswith('PING'):
+            PONG(clientsocket, line)
 
         #handling nick command 
-        elif 'NICK' in line:
-            parts = line.split()
-            if len(parts) > 1:
-                nickname = parts[1]
-                if check_other_nicknames(clientsocket, address, nickname):
-                    if valid_nickname_check(nickname):
-                        update_nickname(clientsocket, address, nickname)
-                    else:
-
-                        invalid_nickname_feedback(clientsocket, nickname)
-            else:   
-                error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
-                clientsocket.sendall(error_message.encode())
-
-
+        elif line.startswith('NICK'):
+            client.handle_nickname(clientsocket, address, line)
+        
         #handling pong command
-        elif 'PONG' in line:  # respond to PONG
+        elif line.startswith('PONG'):  # respond to PONG
             print(f"PONG received from {address}")
             last_pong_time = time.time()  # reset the pong time when PONG received
 
@@ -155,41 +136,25 @@ def processing_data(clientsocket, data, address):
             else:
                 join_channel(clientsocket, address, channel_name)
 
+        # handle leaving channel
         elif line.startswith('PART'):
             channel_name = line.split()[1]
             leave_channel(clientsocket, address, channel_name)
         
         #handling messages
         elif line.startswith('PRIVMSG'):
-             parts = line.split(' ', 2)
-             if len(parts) < 3:
-                  error_message = f":{socket.gethostname()} 412 {clients[address].nickname} :No message to send\r\n"
-                  clientsocket.send(error_message.encode())
-                  return True
-              
-             receiver = parts[1]
-             message = parts[2].lstrip(':')  # remove ':' from the message
-             if receiver.startswith('#'):  # it's a message to a channel
-                 if receiver in channels:
-                     clients[address].send_channel_message(receiver, message)  # call the method in Client class
-                 else:
-                    error_message = f":{socket.gethostname()} 403 {clients[address].nickname} {receiver} :No such channel\r\n"
-                    clientsocket.send(error_message.encode())
-             else:  # it's a private message to a user
-                clients[address].send_private_message(receiver, message)  # call the method in Client class
+            handle_privmsg(line, clientsocket, address)
 
         #handling quit 
         elif line.startswith('QUIT'):
             # close the server
-            quit(clientsocket, address, line)
+            quit_message(clientsocket, address, line)
             return False
+        
         elif line.startswith('MODE'):
             # channel mode message
-             # channel mode
-            channel_name = line.split()[1]
-            channel_mode_message = f":{socket.gethostname()} 324 {clients[clientsocket.getpeername()].nickname} {channel_name} :+"
-            clientsocket.send(channel_mode_message.encode('utf-8') + b'\r\n')
-            pass
+            mode_message(line, clientsocket)
+
         elif line.startswith('WHO'):
             channel_name = line.split()[1]
             who_reply(channel_name, address,clientsocket)       
@@ -199,55 +164,7 @@ def processing_data(clientsocket, data, address):
             clientsocket.send(error_message.encode())
     return True 
 
-
-def update_nickname(clientsocket, address, nickname):
-
-    current_nickname = clients[address].nickname
-
-    if current_nickname and current_nickname != nickname:
-        name_change_message = f":{current_nickname}!{clients[address].username}@{HOST} NICK :{nickname}\r\n"
-        clientsocket.send(name_change_message.encode('utf-8'))
-    elif not current_nickname:
-        welcomeMessage(clientsocket, nickname)
-    clients[address].nickname = nickname
-
-
-
- # check a nickname to make sure it is valid
-def valid_nickname_check(nickname):
-    #IRC standard: nick has to start with letter and contain letters, digits, -, and _
-    return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
-
-def check_other_nicknames(clientsocket, address, nickname):
-    
-    with client_lock:
-        #checking if current client is in dictionary
-        current_client = clients.get(address)
-        if current_client is None:
-            print(f"No client found for address {address}. This shouldn't happen right after connection and registration.")
-            return False  # Early exit if no client is found to prevent further errors
-
-        #if current client sets nickname to same value, ignore
-        if current_client.nickname == nickname:
-            same_nick_message = f":{socket.gethostname()} NOTICE {nickname} :You have already set your nickname to {nickname}\r\n"
-            clientsocket.send(same_nick_message.encode())
-            return False
-        
-        #checking other clients for nickname clashes
-        for addr, client_info in clients.items():
-            if client_info.nickname == nickname and addr != address:
-                error_message = f":{socket.gethostname()} 433 * {nickname} :Nickname is already in use\r\n"
-                clientsocket.send(error_message.encode())
-                return False
-
-        return True     #no issues set nickname
-
-    
- # erroneous nickname error
-def invalid_nickname_feedback(clientsocket, nickname):
-    error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname\r\n"
-    clientsocket.send(error_message.encode())
-
+# send PING message
 def PING(client):
     try:
         print("PING")
@@ -256,6 +173,12 @@ def PING(client):
         #print("PING sent to", client.getpeername())
     except socket.error as e: 
         print(f"error sending PING: {e}")
+
+# send PONG message
+def PONG(clientsocket, line):
+    response = f":{socket.gethostname()} PONG {socket.gethostname()} :{line.split()[1]}"
+    clientsocket.sendall(f"{response}\r\n".encode('utf-8'))
+    print(f"Sent: {response}")
 
  #helper function to parse messages received from socket to strings
 def parse_message(data):
@@ -275,7 +198,6 @@ def welcomeMessage(clientsocket, nickname):
         f":{hostname} 251 {nickname} :There are 1 users and 0 services on 1 server",
         f":{hostname} 422 {nickname} :MOTD File is missing"
     ]
-    
      # send each welcome message to the client
     for message in welcomeMessages:
         if is_valid_message(message): # use the validation function before sending
@@ -301,7 +223,14 @@ def is_valid_message(message):
     else:
         return False
 
-def quit(clientsocket, address, line):
+# reply to the MODE command
+def mode_message(line, clientsocket):
+     # channel mode
+        channel_name = line.split()[1]
+        channel_mode_message = f":{socket.gethostname()} 324 {clients[clientsocket.getpeername()].nickname} {channel_name} :+"
+        clientsocket.send(channel_mode_message.encode('utf-8') + b'\r\n')
+
+def quit_message(clientsocket, address, line):
 
     if len(line.split(":")) > 1: # if there is a quit message
         quitmessage = "Disconnected connection from " + address[0]+ ":" + str(address[1]) +" (" + line.split(":")[1] + ")\r\n"
@@ -355,12 +284,6 @@ def join_channel_messages(clientsocket, channel_name, channel, address):
     end_names_message = f":{socket.gethostname()} 366 {clients[clientsocket.getpeername()].nickname} {channel_name} :End of NAMES list"
     clientsocket.send(end_names_message.encode('utf-8') + b'\r\n')
 
-# for global client channel messages - dont need this - it happens in the function above automatically
-'''def notify_members_on_channel(channel,clientsocket, messages):
-    for member in channel.members:
-        if member.socket != clientsocket:
-            member.socket.sendall(f":{socket.gethostname()} NOTICE {channel.name} :{messages}\r\n".encode('utf-8'))'''
-
 # reply to the client issuing a WHO #channel_name
 def who_reply(channel_name, address,clientsocket):
     channel = channels[channel_name]
@@ -387,7 +310,6 @@ def leave_channel(clientsocket, address, channel_name, reason="Leaving"):
                 member.socket.send(leave_message.encode('utf-8'))
             channel.remove_member(client)
             print(f"{client.nickname} has left {channel_name}")
-
         else:
             error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel\r\n"
             clientsocket.send(error_message.encode())
@@ -395,7 +317,25 @@ def leave_channel(clientsocket, address, channel_name, reason="Leaving"):
         error_message = f":{socket.gethostname()} 403 {channel_name} :No such channel\r\n"
         clientsocket.send(error_message.encode())
 
-
+# decide how to handle the private message command
+def handle_privmsg(line, clientsocket, address):
+    parts = line.split(' ', 2)
+    if len(parts) < 3:
+        # no message was given
+        error_message = f":{socket.gethostname()} 412 {clients[address].nickname} :No message to send\r\n"
+        clientsocket.send(error_message.encode())
+        return True
+            
+    receiver = parts[1]
+    message = parts[2].lstrip(':')  # remove ':' from the message
+    if receiver.startswith('#'):  # it's a message to a channel
+        if receiver in channels:
+            clients[address].send_channel_message(receiver, message)  # call the method in Client class
+        else:
+            error_message = f":{socket.gethostname()} 403 {clients[address].nickname} {receiver} :No such channel\r\n"
+            clientsocket.send(error_message.encode())
+    else:  # it's a private message to a user
+        clients[address].send_private_message(receiver, message)  # call the method in Client class
 
 
 
@@ -411,11 +351,62 @@ class Client:
         self.username = None
         self.nickname = None
         self.hostname = socket.gethostname()
-    
-    def set_client_info(self, username, nickname):
+
+
+    # set username
+    def set_username(self, username_line):
+        split = username_line.split()
+        user = split.index('USER')
+        username = split[user + 1]  # username will be after USER
+        self.username = username
+
+    # handle nickname command
+    def handle_nickname(self, clientsocket, address, line):
+        parts = line.split()
+        current_nickname = self.nickname
+        if len(parts) > 1:
+            nickname = parts[1]
+            if self.check_other_nicknames(clientsocket, address, nickname): # if username is not already in use
+                if self.valid_nickname_check(nickname): # if username is valid
+                    name_change_message = f":{current_nickname}!{clients[address].username}@{HOST} NICK :{nickname}\r\n"
+                    clientsocket.send(name_change_message.encode('utf-8'))
+                    self.nickname = nickname
+                else:
+                    error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname\r\n"
+                    clientsocket.send(error_message.encode())
+        else: 
+            # line only contained NICK, so no nickname was given  
+            error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
+            clientsocket.send(error_message.encode())
+
+    # check a nickname to make sure it is valid
+    def valid_nickname_check(self, nickname):
+        #IRC standard: nick has to start with letter and contain letters, digits, -, and _
+        return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
+
+    def check_other_nicknames(self, clientsocket, address, nickname):
         
-        self.username
-        self.nickname
+        with client_lock:
+            #checking if current client is in dictionary
+            current_client = self
+            if current_client is None:
+                print(f"No client found for address {address}. This shouldn't happen right after connection and registration.")
+                return False  # Early exit if no client is found to prevent further errors
+
+            #if current client sets nickname to same value, ignore
+            if self.nickname == nickname:
+                same_nick_message = f":{socket.gethostname()} NOTICE {nickname} :You have already set your nickname to {nickname}\r\n"
+                clientsocket.send(same_nick_message.encode())
+                return False
+            
+            #checking other clients for nickname clashes
+            for addr, client_info in clients.items():
+                if client_info.nickname == nickname and addr != address:
+                    error_message = f":{socket.gethostname()} 433 * {nickname} :Nickname is already in use\r\n"
+                    clientsocket.send(error_message.encode())
+                    return False
+
+            return True     #no issues set nickname
     
     def send_private_message(self, receiver, message):
         with client_lock:
