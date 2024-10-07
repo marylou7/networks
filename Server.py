@@ -335,7 +335,13 @@ def handle_privmsg(line, clientsocket, address):
             error_message = f":{socket.gethostname()} 403 {clients[address].nickname} {receiver} :No such channel\r\n"
             clientsocket.send(error_message.encode())
     else:  # it's a private message to a user
-        clients[address].send_private_message(receiver, message)  # call the method in Client class
+        final_message_parts = message.split(' :', 1)
+        # checks if we get two parts
+        if len(final_message_parts) > 1:
+         final_message = final_message_parts[1]  
+        else:
+         final_message = ""  # in case there is no message after the colon
+        clients[address].send_private_message(receiver, final_message)  # call the method in Client class
 
 
 
