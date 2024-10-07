@@ -245,19 +245,6 @@ class Bot:
         channelUsers = list(users.split(" "))
         return channelUsers'''
 
-    # function to get the current channel name
-    '''def returnCurrentChannel(self):
-        # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
-        botSock.send(bytes("WHO" + self.returnChannel() + "\r\n", "UTF-8"))
-        names = self.getText()
-        index = str(names).find("#")
-        channel = str(names)
-        index1 = channel[index:]
-        index2 = str(index1).find(":")
-        channelName = channel[index:(index+index2)]
-        return channelName'''
-
-
 try:
     botSock.connect((HOST, PORT))
     ludovic = Bot(NICK, CHANNEL)
