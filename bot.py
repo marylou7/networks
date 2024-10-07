@@ -194,7 +194,7 @@ class Bot:
 
     # Retaining the initial information sent by miniircd about the channel and its users
     def storeInitialInfo(self):
-        initialInfo =self.getText(self) #initial info is stored in the variable 'initialInfo'
+        initialInfo =self.getText() #initial info is stored in the variable 'initialInfo'
         #print(initialInfo)
         return initialInfo
 
@@ -204,7 +204,12 @@ class Bot:
 
     # function to get users of the channel 'test'
     def returnUsers(self):
-        #channelUsers = [] # list of users
+        botSock.send(bytes(f"NAMES {self.returnChannel()} | *\r\n", "UTF-8")) # use the NAME command to return the list of users on the current channel
+        #botSock.send(bytes("WHO" + self.returnChannel() + "\r\n", "UTF-8"))
+        names = self.getText()
+        return names
+        
+        '''#channelUsers = [] # list of users
         # use NAMES command to get all nicknames that are visible on the channel 'test'
         botSock.send(bytes("WHO \r\n", "UTF-8"))
         names =self.getText()
@@ -214,7 +219,7 @@ class Bot:
         index = str(users).find("#")
         users = users[:index-1]
         channelUsers = list(users.split(" "))
-        return channelUsers
+        return channelUsers '''
         
         '''users = names[5:]
         #print(users)
@@ -231,7 +236,7 @@ class Bot:
         return channelUsers'''
 
     # function to get the current channel name
-    def getCurrentChannel(self):
+    '''def returnCurrentChannel(self):
         # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
         botSock.send(bytes("WHO" + self.returnChannel() + "\r\n", "UTF-8"))
         names = self.getText()
@@ -240,22 +245,21 @@ class Bot:
         index1 = channel[index:]
         index2 = str(index1).find(":")
         channelName = channel[index:(index+index2)]
-        return channelName
+        return channelName'''
 
 
 try:
     botSock.connect((HOST, PORT))
     ludovic = Bot(NICK, CHANNEL)
-    print(NICK)
     ludovic.log_in()
-    #print(ludovic.storeInitialInfo())
-    #print(Bot.returnUsers(Bot))
+    initialInfo = ludovic.storeInitialInfo()
+    #print(f'The initial information: {initialInfo}')
 
     Bot.sendMsg(f"Bonjour, je m'appelle {ludovic.returnNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
     
     # testing for returning channel + users:
-    print(f'Channel name: {ludovic.getCurrentChannel()}')
-    print(f'Users : {ludovic.returnUsers()}')
+    print(f'Users: {ludovic.returnUsers()}')
+    print(f'Channel: {ludovic.returnChannel()}')
     
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
         text = ludovic.getText()
