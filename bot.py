@@ -1,12 +1,15 @@
 import socket
 import time
 import random
+import threading
 
 import sys
 
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
 serverName = 'localHost IPv6'
+
+
 
 def checkNick(nickname):
     # 1 < nickname <= 15
@@ -77,12 +80,12 @@ def checkChannel(channelName):
 
 HOST = '::1' #host name
 PORT = 6667 #port number
-#NICK = 'Ludovic' #sets default nickname for bot
-#CHANNEL = '#hello'
-nickname = input("entrez un surnom pour vous-même: ")
+NICK = 'Ludovic' #sets default nickname for bot
+CHANNEL = '#hello'
+'''nickname = input("entrez un surnom pour vous-même: ")
 NICK = checkNick(nickname)
 channelName = input("Saisissez le nom de la chaîne que vous souhaitez rejoindre: ")
-CHANNEL = checkChannel(channelName)
+CHANNEL = checkChannel(channelName)'''
 
 if len(sys.argv) > 0:
     for i in range(1, len(sys.argv)):
@@ -109,6 +112,8 @@ if len(sys.argv) > 0:
 
 class Bot:
     
+    userlist = [] # store users in list 
+
     botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
     #global NICK
     #NICK = 'Ludovic' #sets default nickname for bot
@@ -137,10 +142,10 @@ class Bot:
 
     # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
 
-    def sendMsg(message, target):
+    def sendMsg(self, message, target):
         botSock.send(bytes('PRIVMSG ' + target + ' : ' + message + '\r\n', "UTF-8"))
 
-    def sendIRC(message):
+    def sendIRC(self, message):
         botSock.send(bytes(message + '\r\n', 'UTF-8'))
 
     def getText(self):
@@ -148,33 +153,40 @@ class Bot:
         nick = self.returnNick()
         text = botSock.recv(2040) #reads text sent by server to the bot. This will be expanded to do the pre generated responses to user messages etc. 
         text = text.decode() #converts the bytes to string
-        if text.find('PING') != -1: #if the text is a ping
-            self.sendIRC('PONG ' + socket.gethostname()) #replies with a pong
-            print("PONG sent to server") #check if PONG is sent
-        elif text.find('PRIVMSG ' + channel + ' :!hello') != -1:
-            splitText = text.split(':')
-            splitText = splitText[1].split('!') # splits the string to find the user name of the sender
-            name = splitText[0]
-            if random.choice([0,1]) == 0: # 50/50 chance to respond with one of two greetings
-                self.sendMsg('Salut, ' + name + '!', channel)
-                print('Salut, ' + name + '!')
-            else:
-                self.sendMsg('Bonjour, ' + name + '!', channel)
-                print('Bonjour, ' + name + '!')
-        elif text.find('PRIVMSG ' + channel + ' :!slap') != -1:
-            #here we will randomly choose a user
-            self.sendMsg("TEMPUSER, tu as été giflé avec une truite !", channel)
-        elif text.find('PRIVMSG ' + nick) != -1:
-            splitText = text.split(':')
-            splitText = splitText[1].split('!') # splits the string to find the user name of the sender
-            name = splitText[0]
-            self.sendMsg(self.getFact(), name)
+        lines = text.splitlines()
+        for line in lines:
+            if text.find('PING') != -1: #if the text is a ping
+                #self.sendIRC(message) #replies with a pong
+                botSock.send(f"PONG {socket.gethostname()}\r\n".encode("utf-8"))
+                print("PONG sent to server") #check if PONG is sent
+            elif text.find('PRIVMSG ' + channel + ' :!hello') != -1:
+                splitText = text.split(':')
+                splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+                name = splitText[0]
+                if random.choice([0,1]) == 0: # 50/50 chance to respond with one of two greetings
+                    self.sendMsg('Salut, ' + name + '!', channel)
+                    print('Salut, ' + name + '!')
+                else:
+                    self.sendMsg('Bonjour, ' + name + '!', channel)
+                    print('Bonjour, ' + name + '!')
+            elif text.find('PRIVMSG ' + channel + ' :!slap') != -1:
+                #here we will randomly choose a user
+                self.sendMsg("TEMPUSER, tu as été giflé avec une truite !", channel)
+            elif text.find('PRIVMSG ' + nick) != -1:
+                splitText = text.split(':')
+                splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+                name = splitText[0]
+                self.sendMsg(self.getFact(), name)
+            elif "352" in line: # 352 is the WHO reply command
+                name = line.split()[7]
+                if name not in self.userlist:
+                    self.userlist.append(name) # store list of users globally, so we dont have to keep calling fucntions to get them
         return text
 
-    def sendMsg(message, target):
+    def sendMsg(self, message, target):
         botSock.send(bytes('PRIVMSG ' + target + ' :' + message + '\r\n', "UTF-8"))
 
-    def sendIRC(message):
+    def sendIRC(self, message):
         botSock.send(bytes(message + '\r\n', 'UTF-8'))
 
     def joinChannel(self):
@@ -185,7 +197,7 @@ class Bot:
     #def ping():
         #botSock.send(bytes('PING LAG558571194\r\n', 'UTF-8'))
 
-    def getFact():
+    def getFact(self):
         lines = open('facts.txt').read().splitlines()
         fact = random.choice(lines)
         print(fact)
@@ -198,18 +210,29 @@ class Bot:
         return initialInfo
 
     # function to return host name
-    def getHostName():
+    def getHostName(self):
         return socket.gethostname()
 
-    # function to get users of the channel 'test'
+    # function to get users of the channel the bot is on
     def returnUsers(self):
-        botSock.send(bytes(f"NAMES {self.returnChannel()} | *\r\n", "UTF-8")) # use the NAME command to return the list of users on the current channel
-        #botSock.send(bytes("WHO" + self.returnChannel() + "\r\n", "UTF-8"))
-        names = self.getText()
-        return names
+        
+        botSock.send(bytes(f"WHO {self.returnChannel()}\r\n", "UTF-8")) # use the NAME command to return the list of users on the current channel
+        print(self.userlist)
+        threading.Timer(10.0, self.returnUsers).start() # update the list of users every 20 seconds
+        
+        '''line = str(self.getText())
+        lines = line.split("\n")
+        for lin in lines:
+            if "352" in lin: # 352 is the WHO reply command
+                name = lin.split()[7]
+                if name not in self.userlist:
+                    self.userlist.append(name) # store list of users globally, so we dont have to keep calling fucntions to get them
+        print(self.userlist)
+        return self.userlist'''
     
     # function to return a list of users
-    def userList(self):
+    # if we store a user list as a variable, we don't need a function to get it every time
+    ''' def userList(self):
         names = str(self.returnUsers())
         users = str(names[1:])
         index1 = users.find(":")
@@ -217,33 +240,8 @@ class Bot:
         index2 = users1.find(":")
         users2 = users1[:index2-2]
         channelUsers = list(users2.split(" "))
-        return channelUsers
-        
-        '''#channelUsers = [] # list of users
-        # use NAMES command to get all nicknames that are visible on the channel 'test'
-        botSock.send(bytes("WHO \r\n", "UTF-8"))
-        names =self.getText()
-        print(names)
-        str(names)
-        users = names[1:]
-        index = str(users).find("#")
-        users = users[:index-1]
-        channelUsers = list(users.split(" "))
-        return channelUsers '''
-        
-        '''users = names[5:]
-        #print(users)
-        index = str(users).find(":")
-        #print(index)
-        index2 = str(users).find(chr(92))
-        #print(chr(92))
-        #print(index2)
-        users = str(users[index-1:index2-2])
-        #print(users)
-        users = users[2:-1]
-        #print(users)
-        channelUsers = list(users.split(" "))
         return channelUsers'''
+        
 
 try:
     botSock.connect((HOST, PORT))
@@ -252,19 +250,22 @@ try:
     initialInfo = ludovic.storeInitialInfo()
     #print(f'The initial information: {initialInfo}')
 
-    Bot.sendMsg(f"Bonjour, je m'appelle {ludovic.returnNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
+    ludovic.sendMsg(f"Bonjour, je m'appelle {ludovic.returnNick()} et je suis chatbot sur ce serveur", CHANNEL) # sends a message to the test channel
     
+    # call the WHO message every twetnty seconds
+    #threading.Timer(10.0, ludovic.returnUsers, {}).start()
+
+
     # testing for returning channel + users:
     print(f'Users: {ludovic.returnUsers()}')
-    print(f'User list: {ludovic.userList()}')
+    #print(f'User list: {ludovic.userlist}')
     print(f'Channel: {ludovic.returnChannel()}')
-    
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
         text = ludovic.getText()
         print(text) #any recieved text is printed for debugging purposes
         
+        
 except Exception as e:
-    raise
     print(f"port indisponible ou n'existe pas: {e}")
 finally:
     botSock.close()
