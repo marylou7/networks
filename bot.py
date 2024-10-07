@@ -4,7 +4,6 @@ import random
 
 import sys
 
-
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
 serverName = 'localHost IPv6'
@@ -208,6 +207,17 @@ class Bot:
         #botSock.send(bytes("WHO" + self.returnChannel() + "\r\n", "UTF-8"))
         names = self.getText()
         return names
+    
+    # function to return a list of users
+    def userList(self):
+        names = str(self.returnUsers())
+        users = str(names[1:])
+        index1 = users.find(":")
+        users1 = str(users[index1+1:])
+        index2 = users1.find(":")
+        users2 = users1[:index2-2]
+        channelUsers = list(users2.split(" "))
+        return channelUsers
         
         '''#channelUsers = [] # list of users
         # use NAMES command to get all nicknames that are visible on the channel 'test'
@@ -235,19 +245,6 @@ class Bot:
         channelUsers = list(users.split(" "))
         return channelUsers'''
 
-    # function to get the current channel name
-    '''def returnCurrentChannel(self):
-        # use NAMES command to get all nicknames that are visible on the channel 'test' and the channel name
-        botSock.send(bytes("WHO" + self.returnChannel() + "\r\n", "UTF-8"))
-        names = self.getText()
-        index = str(names).find("#")
-        channel = str(names)
-        index1 = channel[index:]
-        index2 = str(index1).find(":")
-        channelName = channel[index:(index+index2)]
-        return channelName'''
-
-
 try:
     botSock.connect((HOST, PORT))
     ludovic = Bot(NICK, CHANNEL)
@@ -259,6 +256,7 @@ try:
     
     # testing for returning channel + users:
     print(f'Users: {ludovic.returnUsers()}')
+    print(f'User list: {ludovic.userList()}')
     print(f'Channel: {ludovic.returnChannel()}')
     
     while 1: #while loop prevents bot from disconnecting once it runs out of preset commands
