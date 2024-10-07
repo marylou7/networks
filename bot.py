@@ -4,7 +4,6 @@ import random
 
 import sys
 
-
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
 
 serverName = 'localHost IPv6'
