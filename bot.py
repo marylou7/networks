@@ -155,6 +155,7 @@ class Bot:
         text = text.decode() #converts the bytes to string
         lines = text.splitlines()
         for line in lines:
+            print(line)
             if text.find('PING') != -1: #if the text is a ping
                 #self.sendIRC(message) #replies with a pong
                 botSock.send(f"PONG {socket.gethostname()}\r\n".encode("utf-8"))
