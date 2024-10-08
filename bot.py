@@ -29,7 +29,7 @@ def getText(bot, channel):
             elif text.find('PRIVMSG ' + channelName + ' :!hello') != -1:
                 bot.helloCommand(text)
             elif text.find('PRIVMSG ' + channelName + ' :!slap') != -1:
-                bot.slapCommand()
+                bot.slapCommand(text)
             elif text.find('PRIVMSG ' + nick) != -1:
                 bot.sendFact(text)
             elif "352" in line: # 352 is the WHO reply command
@@ -216,9 +216,7 @@ class Bot:
         threading.Timer(10.0, self.returnUsers).start() # update the list of users every 20 seconds
 
     def helloCommand(self, text):
-        splitText = text.split(':')
-        splitText = splitText[1].split('!') # splits the string to find the user name of the sender
-        name = splitText[0]
+        name = self.getSender(text)
         if random.choice([0,1]) == 0: # 50/50 chance to respond with one of two greetings
             self.sendMsg('Salut, ' + name + '!', self.channel.name)
             print('Salut, ' + name + '!')
@@ -226,9 +224,36 @@ class Bot:
             self.sendMsg('Bonjour, ' + name + '!', self.channel.name)
             print('Bonjour, ' + name + '!')
     
-    def slapCommand(self):
-        #here we will randomly choose a user
-        self.sendMsg("TEMPUSER, tu as été giflé avec une truite !", self.channel.name)
+    def slapCommand(self, text):
+        validTarget = False
+        userList = self.channel.userList
+        name = self.getSender(text)
+        splitText = text.split("!")
+        if splitText[2] == "slap\r\n":
+            if len(userList) == 2:
+                self.sendMsg(name + " la commande nécessite plus d'utilisateurs", self.channel.name)
+            else:
+                while validTarget is False:
+                    target = random.choice(userList)
+                    if target != self.nickname and target != name:
+                        validTarget = True
+                        self.sendMsg(target + ", tu as été giflé avec une truite !", self.channel.name)
+        else:
+            splitText = text.split("!slap ")
+            target = (splitText[1])[:-2]
+            print("target: " + target)
+            if target != self.nickname and target != name and target in userList:
+                self.sendMsg(target + ", tu as été giflé avec une truite !", self.channel.name)
+            elif target in userList:
+                self.sendMsg(name + " cible invalide", self.channel.name)
+            else:
+                self.sendMsg(name + ", Cet utilisateur n'est pas là, goûtez au punk à la truite", self.channel.name)
+    
+    def getSender(self, text):
+        splitText = text.split(':')
+        splitText = splitText[1].split('!') # splits the string to find the user name of the sender
+        name = splitText[0]
+        return name
 
         
 class Channel:
