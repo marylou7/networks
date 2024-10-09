@@ -376,8 +376,8 @@ try:
         print(text) #any recieved text is printed for debugging purposes
 
 except Exception as e:
-    raise
     print(f"port indisponible ou n'existe pas: {e}")
+    raise
 finally:
     botSock.close()
     print("Au Revoir")
