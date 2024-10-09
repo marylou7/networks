@@ -35,8 +35,11 @@ def getText(bot, channel):
                 bot.slapCommand(text)
             elif text.find('PRIVMSG ' + nick) != -1:
                 bot.sendFact(text)
-            elif text.find('PRIVMSG ' + channelName + ' :!kick') != -1:
-                bot.kickCommand(text)
+            elif text.find('PRIVMSG ' + channelName + ' :!names') != -1:
+                bot.namesCommand()
+            #elif text.find('PRIVMSG ' + channelName + ' :!kick') != -1:
+                #bot.kickCommand(text)
+            
             elif "352" in line: # 352 is the WHO reply command
                 name = line.split()[7]
                 channel.checkUser(name)
@@ -243,8 +246,17 @@ class Bot:
                 sendMsg(name + " cible invalide", self.channel.name)
             else:
                 sendMsg(name + ", Cet utilisateur n'est pas là, goûtez au punk à la truite", self.channel.name)
+                
+    # Additional IRC command
+    def namesCommand(self):
+        # shows the users in the irc chat
+        userList = self.channel.userList
+        userString = ', '.join(userList)
+        sendMsg("Active users on the channel are: " + userString, self.channel.name)
+        print(userString)
     
-    # Additional IRC command: kick
+    
+    '''# Additional IRC command: kick
     def kickCommand(self, text):
         # The KICK command can be used to forcibly removes a user from a channel
         # Parameters: <channel> <user>
@@ -274,15 +286,16 @@ class Bot:
                 sendMsg(name + "error with this command", self.channel.name)
             else:
                 sendMsg(name + ",specified user is not in channel", self.channel.name)
-        
+        '''
     
-    # Additional IRC command: help
+    # Additional IRC command: !help
     def helpCommand(self):
         # provides a basic help to the hexchat
         sendMsg('A list of commands to use in the channel include: ', self.channel.name)
         sendMsg('!hello command ouputs a hello message to the user ', self.channel.name)
         sendMsg('!slap command is to slap someone in the channel ', self.channel.name)
-        sendMsg('!kick command forcibly removes a user from a channel, !kick <user> forcibly removes the specified user from the channel ', self.channel.name)
+        sendMsg('!names command outputs the list of active users on the channel ', self.channel.name)
+        #sendMsg('!kick command forcibly removes a user from a channel, !kick <user> forcibly removes the specified user from the channel ', self.channel.name)
         sendMsg('!help command returns this list of commands available to the user ', self.channel.name)
         print(f'Basic help!')
     
