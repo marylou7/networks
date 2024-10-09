@@ -5,7 +5,7 @@ import time
 import select
 
 # create global variables
-HOST = "::1" # IPv6 connection 
+HOST = "::" # IPv6 connection 
 PORT = 6667 #IRC port
 clients = {} # store clients in dictinary
 client_lock = threading.Lock() #locking to access 
@@ -242,7 +242,7 @@ class Server:
             self.network_handler.send(clientsocket, error_message)
     return True 
 
-# send PING message
+# send a PING message to make sure client is still connected
  def PING(self, client):
     try:
         print("PING")
@@ -250,11 +250,10 @@ class Server:
         ping_message = f"PING {self.hostname}"
         network_handler.send(client, ping_message)
         time.sleep(10)
-        #print("PING sent to", client.getpeername())
     except socket.error as e: 
         print(f"error sending PING: {e}")
 
-# send PONG message
+# send a PONG message to let the client know it's still connected to the server
  def PONG(self, clientsocket, line):
     response = f":{self.hostname} PONG {self.hostname} :{line.split()[1]}"
     network_handler.send(clientsocket, response)
@@ -264,7 +263,7 @@ class Server:
  # created a list of all the messages that show at the start of the connection
  def welcomeMessage(self, clientsocket, nickname):
     
-    hostname = self.hostname  # get the server hostname
+    hostname = self.hostname  # get the server hostname to form the messages
     # displays welcome messages
     welcomeMessages =  [
         f":{hostname} 001 {nickname} :Hi, welcome to IRC",
@@ -276,19 +275,16 @@ class Server:
     ]
      # send each welcome message to the client
     for message in welcomeMessages:
-        if self.is_valid_message(message): # use the validation function before sending
+        if self.is_valid_message(message): # check to see if the message is IRC compliant before sending
             print(f"Sending valid message: {message}")
-            #clientsocket.sendall(f"{message}\r\n".encode('utf-8'))
             network_handler.send(clientsocket, message)
         else:
             print(f"Garbage message detected: {message}")
             continue
 
-
+# checks if the message matches the exact IRC message format:
+# # e.g. :hostname 001 nickname :Welcome to the IRC server
  def is_valid_message(self, message):
-    # checks if the message matches the exact IRC message format:
-    # e.g. :hostname 001 nickname :Welcome to the IRC server
-
     # the regex pattern for the message format
     pattern = r'^:(\S+) (\d{3}) (\S+) :(.+)$'
     
@@ -307,7 +303,7 @@ class Server:
         channel_mode_message = f":{self.hostname} 324 {clients[address].nickname} {channel_name} :+"
         network_handler.send(clientsocket, channel_mode_message)
 
-
+ # send a quit message 
  def quit_message(self, clientsocket, address, message):
   
     quitmessage = f":{clients[address].nickname}!{clients[address].username}@{HOST} QUIT :{message}"
@@ -319,6 +315,7 @@ class Server:
     del clients[address]
     # send quit message to others on the server
 
+#allows client to join a channel
  def join_channel(self, clientsocket, address, channel_name):
     global channels
 
@@ -375,7 +372,7 @@ class Server:
     end_message = f":{self.hostname} 315 {clients[address].nickname} {channel.name} :End of WHO list"
     network_handler.send(clientsocket, end_message)  
 
-
+ # leave channel 
  def leave_channel(self, clientsocket, address, channel_name, reason="Leaving"):
     client = clients.get(address)  #fetch client
 
@@ -398,7 +395,7 @@ class Server:
             network_handler.send(clientsocket, error_message) 
     else:
         error_message = f":{self.hostname} 403 {channel_name} :No such channel"
-        network_handler.send(clientsocket, error_message)  # Use network handler to send error message
+        network_handler.send(clientsocket, error_message)  
 
  # decide how to handle the private message command
  def handle_privmsg(self, line, clientsocket, address):
@@ -490,6 +487,7 @@ class Client:
 
             return True     #no issues set nickname
     
+    #send a private message 
     def send_private_message(self, receiver, message):
         with client_lock:
             found = False
@@ -502,9 +500,10 @@ class Client:
                     break
             
             if not found:
-                error_message = f":{self.hostname} 401 {self.nickname} {receiver} :No such nick"
+                error_message = f":{self.hostname} 401 {self.nickname} {receiver} :No such nick" #if no receiver was found
                 network_handler.send(self.socket, error_message)
-
+    
+    #send a channel messsage
     def send_channel_message(self, channel_name, message):
         with client_lock:
             if channel_name in channels:  # check if the channel exists

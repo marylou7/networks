@@ -128,7 +128,7 @@ def checkChannel(channelName):
     return channelName
 
 
-HOST = '::1' #host name
+HOST = 'fc00:1337::17' #host name
 PORT = 6667 #port number
 NICK = 'Ludovic' #sets default nickname for bot
 CHANNEL = '#test'
