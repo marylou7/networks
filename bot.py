@@ -130,16 +130,8 @@ def checkChannel(channelName):
 
 HOST = 'fc00:1337::17' #host name
 PORT = 6667 #port number
-#NICK = 'Ludovic' #sets default nickname for bot
-#CHANNEL = '#test'
-
-
-# user inputs
-nickname = input("entrez un surnom pour vous-même: ")
-NICK = checkNick(nickname)
-channelName = input("Saisissez le nom de la chaîne que vous souhaitez rejoindre: ")
-CHANNEL = checkChannel(channelName)
-
+NICK = 'Ludovic' #sets default nickname for bot
+CHANNEL = '#test'
 
 if len(sys.argv) > 0:
     for i in range(1, len(sys.argv)):
@@ -153,6 +145,7 @@ if len(sys.argv) > 0:
             NICK = str(sys.argv[i])
         elif sys.argv[i].find('channel') != -1:
             i += 1
+            # this works as long as the channel name is between " "
             CHANNEL = str(sys.argv[i])
         elif sys.argv[i].find('host') != -1:
             i += 1

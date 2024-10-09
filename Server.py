@@ -324,7 +324,7 @@ class Server:
     # send quit message to others on the server
     for addr, client in clients.items():
         if client.socket != clientsocket: # don't send the message to the one that is quitting
-            client.socket.send(quitmessage.encode("utf-8"))
+            network_handler.send(client.socket, quitmessage)
     del clients[address]
     # send quit message to others on the server
 
