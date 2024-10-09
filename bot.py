@@ -128,16 +128,16 @@ def checkChannel(channelName):
 
 HOST = '::1' #host name
 PORT = 6667 #port number
-NICK = 'Ludovic' #sets default nickname for bot
-CHANNEL = '#test'
+#NICK = 'Ludovic' #sets default nickname for bot
+#CHANNEL = '#test'
 
-'''
+
 # user inputs
 nickname = input("entrez un surnom pour vous-même: ")
 NICK = checkNick(nickname)
 channelName = input("Saisissez le nom de la chaîne que vous souhaitez rejoindre: ")
 CHANNEL = checkChannel(channelName)
-'''
+
 
 if len(sys.argv) > 0:
     for i in range(1, len(sys.argv)):
