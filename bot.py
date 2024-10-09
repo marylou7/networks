@@ -16,7 +16,7 @@ def returnServerText():
     print("text: " + text)
     return text
 
-#checks the text recieved from the server
+# function to check the text recieved from the server, parses in the bot object and channel
 def getText(bot, channel):
         channelName = channel.returnName()
         nick = bot.returnNick()
@@ -27,15 +27,15 @@ def getText(bot, channel):
             if text.find('PING') != -1: #if the text is a ping
                 sendPong()
                 print("PONG sent to server") #check if PONG is sent
-            elif text.find('PRIVMSG ' + channelName + ' :!hello') != -1:
+            elif text.find('PRIVMSG ' + channelName + ' :!hello') != -1: # used for hello command
                 bot.helloCommand(text)
-            elif text.find('PRIVMSG ' + channelName + ' :!help') != -1:
+            elif text.find('PRIVMSG ' + channelName + ' :!help') != -1: # used for help command
                 bot.helpCommand(text)
-            elif text.find('PRIVMSG ' + channelName + ' :!slap') != -1:
+            elif text.find('PRIVMSG ' + channelName + ' :!slap') != -1: # used for slap command
                 bot.slapCommand(text)
-            elif text.find('PRIVMSG ' + nick) != -1:
+            elif text.find('PRIVMSG ' + nick) != -1: # used for sending a fact
                 bot.sendFact(text)
-            elif text.find('PRIVMSG ' + channelName + ' :!names') != -1:
+            elif text.find('PRIVMSG ' + channelName + ' :!names') != -1: # used for name command
                 bot.namesCommand()
             #elif text.find('PRIVMSG ' + channelName + ' :!kick') != -1:
                 #bot.kickCommand(text)
@@ -45,15 +45,19 @@ def getText(bot, channel):
                 channel.checkUser(name)
         return text
 
+# function so send a pong
 def sendPong():
     sendIRC("PONG " + socket.gethostname())
 
+# function to send a message on the channel
 def sendMsg(message, target):
     sendIRC('PRIVMSG ' + target + ' :' + message)
 
+# function to send irc message
 def sendIRC(message):
     botSock.send(bytes(message + '\r\n', 'UTF-8'))
 
+# function to check that the user inputted nickname is valid
 def checkNick(nickname):
     # 1 < nickname <= 15
     flag = False
@@ -87,6 +91,7 @@ def checkNick(nickname):
             
     return nickname
 
+# function to check that the user inputted channel name is valid
 def checkChannel(channelName):
     # 1 < channelName <= 15
     flag = False
@@ -128,6 +133,7 @@ NICK = 'Ludovic' #sets default nickname for bot
 CHANNEL = '#test'
 
 '''
+# user inputs
 nickname = input("entrez un surnom pour vous-même: ")
 NICK = checkNick(nickname)
 channelName = input("Saisissez le nom de la chaîne que vous souhaitez rejoindre: ")
@@ -151,26 +157,25 @@ if len(sys.argv) > 0:
             i += 1
             HOST = str(sys.argv[i])
 
-#print(NICK)
-#print(PORT)
-#print(CHANNEL)
-
-#print(socket.gethostname())
-
+# Bot class
 class Bot:
     
     userlist = [] # store users in list
     
+    # initialisation of the bot
     def __init__(self, nickname, channel):
         self.nickname = nickname
         self.channel = Channel(channel)
     
+    # function to return the nickname
     def returnNick(self):
         return str(self.nickname)
     
+    # function to return the channel
     def returnChannel(self):
         return self.channel
 
+    # function to log the user into the channel
     def log_in(self):
         NICK = self.returnNick()
         sendIRC("CAP LS 302") #CAP command used for sign in, idk what this does but its the lynch pin holding the sign in protocol together apparently
@@ -182,19 +187,21 @@ class Bot:
         time.sleep(0.1)
         sendIRC("JOIN " + self.channel.returnName()) #test channel is joined
         time.sleep(0.1)
+        # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
 
-    # ^^^ sleeps used to break commands into seperate lines and wait for a response if neccesary
-
+    # function to join a channel
     def joinChannel(self):
         channel = self.channel
         sendIRC('JOIN ' + channel.returnName()) #functions that either don't work or currently aren't in use
 
+    # function to get a fact
     def getFact(self):
         lines = open('facts.txt').read().splitlines()
         fact = random.choice(lines)
         print(fact)
         return fact
     
+    # function to send a fact to the channel chat
     def sendFact(self, text):
         splitText = text.split(':')
         splitText = splitText[1].split('!') # splits the string to find the user name of the sender
@@ -211,6 +218,7 @@ class Bot:
         print(self.userlist)
         threading.Timer(10.0, self.returnUsers).start() # update the list of users every 20 seconds
 
+    # function for the hello command - says hello to the user when !hello is typed to the channel
     def helloCommand(self, text):
         name = self.getSender(text)
         if random.choice([0,1]) == 0: # 50/50 chance to respond with one of two greetings
@@ -220,8 +228,9 @@ class Bot:
             sendMsg('Bonjour, ' + name + '!', self.channel.name)
             print('Bonjour, ' + name + '!')
     
+    # function for the slap command - slaps a user, !slap
     def slapCommand(self, text):
-        validTarget = False
+        validTarget = False # is there a valid user to slap?
         userList = self.channel.userList
         name = self.getSender(text)
         splitText = text.split("!")
@@ -229,16 +238,18 @@ class Bot:
         index = len(splitText) - 1
         if splitText[index] == "slap\r\n":
             if len(userList) == 2:
+                # must have more than 2 users - can't slap the bot, can't slap yourself
                 sendMsg(name + " la commande nécessite plus d'utilisateurs", self.channel.name)
             else:
                 while validTarget is False:
-                    target = random.choice(userList)
+                    target = random.choice(userList) # chooses a random user to slap
                     if target != self.nickname and target != name:
                         validTarget = True
                         sendMsg(target + ", tu as été giflé avec une truite !", self.channel.name)
         else:
+            # when the slap victim is specified
             splitText = text.split("!slap ")
-            target = (splitText[1])[:-2]
+            target = (splitText[1])[:-2] # specified user to slap
             print("target: " + target)
             if target != self.nickname and target != name and target in userList:
                 sendMsg(target + ", tu as été giflé avec une truite !", self.channel.name)
@@ -247,12 +258,12 @@ class Bot:
             else:
                 sendMsg(name + ", Cet utilisateur n'est pas là, goûtez au punk à la truite", self.channel.name)
                 
-    # Additional IRC command
+    # Additional IRC command: names
     def namesCommand(self):
         # shows the users in the irc chat
         userList = self.channel.userList
         userString = ', '.join(userList)
-        sendMsg("Active users on the channel are: " + userString, self.channel.name)
+        sendMsg("Les utilisateurs actifs sur la chaîne sont: " + userString, self.channel.name)
         print(userString)
     
     
@@ -290,36 +301,41 @@ class Bot:
     
     # Additional IRC command: !help
     def helpCommand(self):
-        # provides a basic help to the hexchat
-        sendMsg('A list of commands to use in the channel include: ', self.channel.name)
-        sendMsg('!hello command ouputs a hello message to the user ', self.channel.name)
-        sendMsg('!slap command is to slap someone in the channel ', self.channel.name)
-        sendMsg('!names command outputs the list of active users on the channel ', self.channel.name)
+        # provides a basic help output to the hexchat for users to refer to when they aren't sure which commands to use
+        sendMsg('Une liste de commandes à utiliser dans le canal comprend :', self.channel.name)
+        sendMsg('La commande !hello envoie un message bonjour à l utilisateur', self.channel.name)
+        sendMsg('La commande !slap consiste à gifler quelqu un dans le canal', self.channel.name)
+        sendMsg('La commande !names affiche la liste des utilisateurs actifs sur le canal ', self.channel.name)
         #sendMsg('!kick command forcibly removes a user from a channel, !kick <user> forcibly removes the specified user from the channel ', self.channel.name)
-        sendMsg('!help command returns this list of commands available to the user ', self.channel.name)
+        sendMsg('The !help command returns this list of commands available to the user ', self.channel.name)
         print(f'Basic help!')
     
+    # Function to get the sender
     def getSender(self, text):
         splitText = text.split(':')
         splitText = splitText[1].split('!') # splits the string to find the user name of the sender
         name = splitText[0]
         return name
 
-        
+# Channel class:
 class Channel:
     
     userList = []
 
+    # class initialisation
     def __init__(self, name):
         print("channel.__innit__")
         self.name = name
 
+    # function to return the channel name
     def returnName(self):
         return self.name
     
+    # function to set the channel name
     def setName(self, name):
         self.name = name
 
+    # function to return the a list of users in the channel
     def returnUserList(self):
         return self.userList
     
@@ -332,6 +348,7 @@ class Channel:
         return initialInfo
     '''
     
+    # function to get test from hexchat
     def getText(self):
         print("channel.getText")
         text = returnServerText()
@@ -340,21 +357,21 @@ class Channel:
             if '352' in line:
                 name = line.split()[7]
                 if name not in self.userList:
-                    self.userList.append(name)
+                    self.userList.append(name) # update the user list
         return text
     
+    # function to update te user list to make sure it is accurate
     def updateUserList(self):
         print("channel.updateUserList")
         try:
             sendIRC("WHO " + self.returnName()) # use the NAME command to return the list of users on the current channel
-
-
             print('::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::')
             print(self.userList)
         except:
             raise
         threading.Timer(10.0, self.updateUserList).start() # update the list of users every 20 seconds
     
+    # function to check if a name is in the list of users
     def checkUser(self, name):
         if name not in self.userList:
             self.userList.append(name) # store list of users globally, so we dont have to keep calling fucntions to get them
