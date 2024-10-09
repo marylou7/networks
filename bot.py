@@ -2,7 +2,6 @@ import socket
 import time
 import random
 import threading
-
 import sys
 
 botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
