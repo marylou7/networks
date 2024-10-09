@@ -109,8 +109,10 @@ class Server:
     
     last_activity_time = time.time()  # tracks the last time we received anything from client
     ping_interval = 20  # time for sending PING if no activity from the client
-    pong_timeout = 60 # timeout for waiting for PONG or anything else
-    
+
+    pong_timeout = 60  # timeout for waiting for PONG or anything else
+    welcomed = False
+
     try:
         dataBool = True
         while dataBool == True:
@@ -123,7 +125,7 @@ class Server:
             if time.time() - last_activity_time > pong_timeout:
                 print(f"No activity from {address} for {pong_timeout} seconds, disconnecting...")
                 break  # disconnect the client
-            
+
             #select to check if there is data available to read on the client socket
             readable, _, _ = select.select([clientsocket], [], [], 5)
             if readable:
@@ -135,9 +137,16 @@ class Server:
 
                         # reset last activity time
                         last_activity_time = time.time()
-                        
+
                         # Process other data
+
                         dataBool = self.processing_data(clientsocket, data, address)
+                        
+                        client = clients[address]
+                        if client.username != None and client.nickname != None and welcomed == False:
+                            welcomeMessage(clientsocket, client.nickname)
+                            welcomed = True 
+
                     else:
                         print("No data received, closing connection.")
                         break 
@@ -146,10 +155,20 @@ class Server:
                     print(f"Error with getting data: {e}")
                     break 
     finally:
-        with client_lock:
-            # delete client so another client with same name can reconnect
-            del clients[address]
-        self.network_handler.close_connection(clientsocket)
+
+
+        print("closing")
+
+        for channel_name in channels:
+            channels[channel_name].remove_member(clients[address])
+            print("members")
+            for members in channels[channel_name].members:
+                print(members)
+        
+        message = clients[address].username
+        quit_message(clientsocket, address, message)
+        
+        self.network_handler.close_connection(clientsocket) 
         print("Closed connection by", address)
 
 # process data received
@@ -159,10 +178,11 @@ class Server:
     client = clients[address]
     
     for line in lines:  # handle multiple lines
+        
         #handling user command
         if line.startswith('USER'):
             client.set_username(line)
-            self.welcomeMessage(clientsocket, client.nickname)
+
         # cap command
         elif line.startswith('CAP'):
             pass  
@@ -203,8 +223,14 @@ class Server:
         #handling quit 
         elif line.startswith('QUIT'):
             # close the server
-            
-            self.quit_message(clientsocket, address, line)
+            #self.quit_message(clientsocket, address, line)
+
+            '''if len(line.split(":")) > 1:
+                message = line.split(":")[1]
+            else:
+                message = clients[address].username
+            quit_message(clientsocket, address, message)'''
+
             return False
         
         elif line.startswith('MODE'):
@@ -285,13 +311,16 @@ class Server:
         channel_mode_message = f":{socket.gethostname()} 324 {clients[clientsocket.getpeername()].nickname} {channel_name} :+"
         network_handler.send(clientsocket, channel_mode_message)
 
- def quit_message(self, clientsocket, address, line):
 
-    if len(line.split(":")) > 1: # if there is a quit message
-        quitmessage = "Disconnected connection from " + address[0]+ ":" + str(address[1]) +" (" + line.split(":")[1] + ")\r\n"
-    else:
-        quitmessage = "Disconnected connection from " + address[0] + ":" + str(address[1]) + " (" + clients[address].username + ")\r\n"
+def quit_message(clientsocket, address, message):
+  
+    quitmessage = f":{clients[address].nickname}!{clients[address].username}@{HOST} QUIT :{message} \r\n"
     print(quitmessage)
+    # send quit message to others on the server
+    for addr, client in clients.items():
+        if client.socket != clientsocket: # don't send the message to the one that is quitting
+            client.socket.send(quitmessage.encode("utf-8"))
+    del clients[address]
     # send quit message to others on the server
 
  def join_channel(self, clientsocket, address, channel_name):
