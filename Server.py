@@ -144,7 +144,7 @@ class Server:
                         
                         client = clients[address]
                         if client.username != None and client.nickname != None and welcomed == False:
-                            welcomeMessage(clientsocket, client.nickname)
+                            self.welcomeMessage(clientsocket, client.nickname)
                             welcomed = True 
 
                     else:
@@ -166,7 +166,7 @@ class Server:
                 print(members)
         
         message = clients[address].username
-        quit_message(clientsocket, address, message)
+        self.quit_message(clientsocket, address, message)
         
         self.network_handler.close_connection(clientsocket) 
         print("Closed connection by", address)
@@ -312,7 +312,7 @@ class Server:
         network_handler.send(clientsocket, channel_mode_message)
 
 
-def quit_message(clientsocket, address, message):
+ def quit_message(clientsocket, address, message):
   
     quitmessage = f":{clients[address].nickname}!{clients[address].username}@{HOST} QUIT :{message} \r\n"
     print(quitmessage)
