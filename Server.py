@@ -66,10 +66,10 @@ class Network_Handler:
         try:
             # Encode the data to bytes and send it to the client
             print("Sending data")
-            clientsocket.sendall(data.encode('utf-8') + b'\r\n') 
+            clientsocket.send(data.encode('utf-8') + b'\r\n') 
         except Exception as e:
             print(f"Error sending data: {e}")
-            self.close_connection(clientsocket)
+           # self.close_connection(clientsocket)
 
  def receive(self, clientsocket):
         try:
@@ -80,11 +80,11 @@ class Network_Handler:
                 return data
             else:
                 print("No data received, closing connection.")
-                self.close_connection(clientsocket)
+                #self.close_connection(clientsocket)
                 return None
         except Exception as e:
             print(f"Error receiving data: {e}")
-            self.close_connection(clientsocket)
+            #self.close_connection(clientsocket)
             return None
 
  def close_connection(self, clientsocket):
@@ -155,8 +155,6 @@ class Server:
                     print(f"Error with getting data: {e}")
                     break 
     finally:
-
-
         print("closing")
 
         for channel_name in channels:
@@ -242,7 +240,7 @@ class Server:
             self.who_reply(channel_name, address,clientsocket)       
         else:
             # Unknown command if it is not in the list of known ones
-            error_message = f":{socket.gethostname()} 421 * {line} :Unknown command\r\n"
+            error_message = f":{socket.gethostname()} 421 * {line} :Unknown command"
             self.network_handler.send(clientsocket, error_message)
     return True 
 
@@ -251,7 +249,7 @@ class Server:
     try:
         print("PING")
         # Create the PING message
-        ping_message = f"PING {socket.gethostname()}\r\n"
+        ping_message = f"PING {socket.gethostname()}"
         network_handler.send(client, ping_message)
         time.sleep(10)
         #print("PING sent to", client.getpeername())
@@ -312,9 +310,9 @@ class Server:
         network_handler.send(clientsocket, channel_mode_message)
 
 
- def quit_message(clientsocket, address, message):
+ def quit_message(self, clientsocket, address, message):
   
-    quitmessage = f":{clients[address].nickname}!{clients[address].username}@{HOST} QUIT :{message} \r\n"
+    quitmessage = f":{clients[address].nickname}!{clients[address].username}@{HOST} QUIT :{message}"
     print(quitmessage)
     # send quit message to others on the server
     for addr, client in clients.items():
@@ -349,7 +347,7 @@ class Server:
 
     # actually join the channel
     client = clients[address]
-    join_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} JOIN {channel.name}\r\n"
+    join_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} JOIN {channel.name}"
 
     # send join channel message to all members in the channel to notify them 
     for member in channel.members:
@@ -374,9 +372,9 @@ class Server:
     channel = channels[channel_name]
     print(f"nick {clients[address].nickname}, address {address}" )
     for member in channel.members:
-        who_message = f":{socket.gethostname()} 352 {clients[address].nickname} {channel.name} {clients[address].username} {address[0]} {socket.gethostname()} {member.nickname} H :0 realname\r\n"
+        who_message = f":{socket.gethostname()} 352 {clients[address].nickname} {channel.name} {clients[address].username} {address[0]} {socket.gethostname()} {member.nickname} H :0 realname"
         network_handler.send(clientsocket, who_message)  
-    end_message = f":{socket.gethostname()} 315 {clients[address].nickname} {channel.name} :End of WHO list\r\n"
+    end_message = f":{socket.gethostname()} 315 {clients[address].nickname} {channel.name} :End of WHO list"
     network_handler.send(clientsocket, end_message)  
 
 
@@ -391,17 +389,17 @@ class Server:
     if channel_name in channels:
         channel = channels[channel_name]
 
-        leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}\r\n" 
+        leave_message = f":{client.nickname}!{client.username}@{client.clientAddress[0]} PART {channel.name} :{reason}" 
         if client in channel.members:
             for member in channel.members:
                 network_handler.send(member.socket, leave_message) 
             channel.remove_member(client)
             print(f"{client.nickname} has left {channel_name}")
         else:
-            error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel\r\n"
+            error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel"
             network_handler.send(clientsocket, error_message) 
     else:
-        error_message = f":{socket.gethostname()} 403 {channel_name} :No such channel\r\n"
+        error_message = f":{socket.gethostname()} 403 {channel_name} :No such channel"
         network_handler.send(clientsocket, error_message)  # Use network handler to send error message
 
  # decide how to handle the private message command
@@ -409,25 +407,21 @@ class Server:
     parts = line.split(' ', 2)
     if len(parts) < 3:
         # no message was given
-        error_message = f":{socket.gethostname()} 412 {clients[address].nickname} :No message to send\r\n"
+        error_message = f":{socket.gethostname()} 412 {clients[address].nickname} :No message to send"
         network_handler.send(clientsocket, error_message)
         return True
             
     receiver = parts[1]
-    message = parts[2].lstrip(':')  # remove ':' from the message
+    message = parts[2]
     if receiver.startswith('#'):  # it's a message to a channel
         if receiver in channels:
             clients[address].send_channel_message(receiver, message)  # call the method in Client class
         else:
-            error_message = f":{socket.gethostname()} 403 {clients[address].nickname} {receiver} :No such channel\r\n"
+            error_message = f":{socket.gethostname()} 403 {clients[address].nickname} {receiver} :No such channel"
             network_handler.send(clientsocket, error_message)
     else:  # it's a private message to a user
-        final_message_parts = message.split(' :', 1)
-        # checks if we get two parts
-        if len(final_message_parts) > 1:
-         final_message = final_message_parts[1]  
-        else:
-          final_message = ""  # in case there is no message after the colon
+        final_message = message
+          
         clients[address].send_private_message(receiver, final_message)  # call the method in Client class
 
 #CLIENT CLASS
@@ -443,10 +437,12 @@ class Client:
 
     # set username
     def set_username(self, username_line):
+        
         split = username_line.split()
         user = split.index('USER')
         username = split[user + 1]  # username will be after USER
         self.username = username
+        print("username is changing: ", self.username)
 
     # handle nickname command
     def handle_nickname(self, clientsocket, address, line):
@@ -456,15 +452,15 @@ class Client:
             nickname = parts[1]
             if self.check_other_nicknames(clientsocket, address, nickname): # if username is not already in use
                 if self.valid_nickname_check(nickname): # if username is valid
-                    name_change_message = f":{current_nickname}!{clients[address].username}@{HOST} NICK :{nickname}\r\n"
+                    name_change_message = f":{current_nickname}!{clients[address].username}@{HOST} NICK :{nickname}"
                     network_handler.send(clientsocket, name_change_message)
                     self.nickname = nickname
                 else:
-                    error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname\r\n"
+                    error_message = f":{socket.gethostname()} 432 * {nickname} :Erroneous Nickname"
                     network_handler.send(clientsocket, error_message)
         else: 
             # line only contained NICK, so no nickname was given  
-            error_message = f":{socket.gethostname()} 431 * :No nickname given\r\n"
+            error_message = f":{socket.gethostname()} 431 * :No nickname given"
             network_handler.send(clientsocket, error_message)
 
     # check a nickname to make sure it is valid
@@ -483,14 +479,14 @@ class Client:
 
             #if current client sets nickname to same value, ignore
             if self.nickname == nickname:
-                same_nick_message = f":{socket.gethostname()} NOTICE {nickname} :You have already set your nickname to {nickname}\r\n"
+                same_nick_message = f":{socket.gethostname()} NOTICE {nickname} :You have already set your nickname to {nickname}"
                 network_handler.send(clientsocket, same_nick_message)
                 return False
             
             #checking other clients for nickname clashes
             for addr, client_info in clients.items():
                 if client_info.nickname == nickname and addr != address:
-                    error_message = f":{socket.gethostname()} 433 * {nickname} :Nickname is already in use\r\n"
+                    error_message = f":{socket.gethostname()} 433 * {nickname} :Nickname is already in use"
                     network_handler.send(clientsocket, error_message)
                     return False
 
@@ -503,12 +499,12 @@ class Client:
                 if client.nickname == receiver:
                     found = True
                     sender_nickname = self.nickname
-                    private_message = f":{sender_nickname} PRIVMSG {receiver} :{message}\r\n"
+                    private_message = f":{sender_nickname}!{self.username}@{HOST} PRIVMSG {receiver} {message}"
                     network_handler.send(client.socket, private_message)
                     break
             
             if not found:
-                error_message = f":{socket.gethostname()} 401 {self.nickname} {receiver} :No such nick\r\n"
+                error_message = f":{socket.gethostname()} 401 {self.nickname} {receiver} :No such nick"
                 network_handler.send(self.socket, error_message)
 
     def send_channel_message(self, channel_name, message):
@@ -518,13 +514,13 @@ class Client:
                 if self in channel.members: # check if the client is a member of the channel
                     for member in channel.members:    # send message to all memebers in the channel
                         if member.socket != self.socket:  # don't send the message back to the sender
-                            channel_message = f":{self.nickname} PRIVMSG {channel_name} :{message}\r\n"
+                            channel_message = f":{self.nickname}!{self.username}@{HOST} PRIVMSG {channel_name} :{message}"
                             network_handler.send(member.socket, channel_message)
                 else:
-                    error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel\r\n"
+                    error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel"
                     network_handler.send(self.socket, error_message)  
             else:
-                error_message = f":{socket.gethostname()} 403 {self.nickname} {channel_name} :No such channel\r\n"
+                error_message = f":{socket.gethostname()} 403 {self.nickname} {channel_name} :No such channel"
                 network_handler.send(self.socket, error_message)
         
 #CHANNEL CLASS
