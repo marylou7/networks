@@ -385,7 +385,7 @@ class Server:
     end_message = f":{self.hostname} 315 {clients[address].nickname} {channel.name} :End of WHO list"
     network_handler.send(clientsocket, end_message)  
 
- # leave channel 
+ # handle PART command to leave a channel
  def leave_channel(self, clientsocket, address, channel_name, reason="Leaving"):
     client = clients.get(address)  #fetch client
 
@@ -410,7 +410,7 @@ class Server:
         error_message = f":{self.hostname} 403 {channel_name} :No such channel"
         network_handler.send(clientsocket, error_message)  
 
- # decide how to handle the private message command
+ # handle privmsg command message
  def handle_privmsg(self, line, clientsocket, address):
     parts = line.split(' ', 2)
     if len(parts) < 3:
@@ -419,8 +419,8 @@ class Server:
         network_handler.send(clientsocket, error_message)
         return True
             
-    receiver = parts[1]
-    message = parts[2]
+    receiver = parts[1] # get reciever of message
+    message = parts[2] # get actual message
     if receiver.startswith('#'):  # it's a message to a channel
         if receiver in channels:
             clients[address].send_channel_message(receiver, message)  # call the method in Client class
@@ -443,7 +443,7 @@ class Client:
         self.network_handler = network_handler
 
 
-    # set username
+    # set username of client
     def set_username(self, username_line):
         
         split = username_line.split()
@@ -452,12 +452,13 @@ class Client:
         self.username = username
         print("username is changing: ", self.username)
 
-    # handle nickname command
+    # handle NICK command
     def handle_nickname(self, clientsocket, address, line):
         parts = line.split()
         current_nickname = self.nickname
         if len(parts) > 1:
             nickname = parts[1]
+            # if nickname is valid and noy being used by another client
             if self.check_other_nicknames(clientsocket, address, nickname): # if username is not already in use
                 if self.valid_nickname_check(nickname): # if username is valid
                     name_change_message = f":{current_nickname}!{clients[address].username}@{HOST} NICK :{nickname}"
@@ -475,7 +476,8 @@ class Client:
     def valid_nickname_check(self, nickname):
         #IRC standard: nick has to start with letter and contain letters, digits, -, and _
         return re.match(r'^[A-Za-z][A-Za-z0-9\-_]*$', nickname) is not None
-
+    
+    # checking if chosen nickname is already being used
     def check_other_nicknames(self, clientsocket, address, nickname):
         
         with client_lock:
@@ -504,6 +506,7 @@ class Client:
     def send_private_message(self, receiver, message):
         with client_lock:
             found = False
+            # iterating through clients to find receiver
             for addr, client in clients.items():
                 if client.nickname == receiver:
                     found = True
@@ -537,10 +540,10 @@ class Client:
 
 class Channel:
     def __init__(self, name):
-        self.name = name
-        self.members = []
-        self.topic = None
-        self.operator = None
+        self.name = name #channel name
+        self.members = [] # list of members in channel
+        self.topic = None # channel topic
+        self.operator = None #channel operator 
 
     # add member to list of members if not already present
     def add_member(self, client):
@@ -548,12 +551,14 @@ class Channel:
             self.members.append(client)
             return True
         return False
-
+    
+    # remove a member from channel
     def remove_member(self, client):
         if client in self.members:
             self.members.remove(client)
             return True
         return False
-    
+
+# instantiate network handler class and start server    
 network_handler = Network_Handler()
 network_handler.connect()
