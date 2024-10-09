@@ -11,43 +11,49 @@ clients = {} # store clients in dictinary
 client_lock = threading.Lock() #locking to access 
 channels = {} # store channels in dictinary
  
+# class to handle networking operations
 class Network_Handler: 
     
  def __init__(self):
-        self.server = None
- #server socket
+        self.server = None #server socket will be initialized later on.
+
+ # server socket will be initialized later on.
  def connect(self):
     
- # loop to keep looking for more clients until interrupted
+    # loop to keep looking for more clients until interrupted
      try:
-        self.server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)   #AF.INET6 so socket uses IPv6  #SOCK stream so socket uses TCP
+        # AF.INET6 so socket uses IPv6  #SOCK stream so socket uses TCP
+        self.server = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)   
         print("socket created")
-        self.server.bind((HOST, PORT)) # binding socket to specified HOST & PORT
+        # binding socket to specified HOST & PORT
+        self.server.bind((HOST, PORT)) 
         print ("socket binded to %s" %(PORT)) 
-        self.server.listen(5) #accepting incoming connections
+        # listening for incoming connections (max queue of 5)
+        self.server.listen(5) 
         print("socket listening")
-        
+        # getting server hostname 
         hostname = socket.gethostname()
         print('HOSTNAME: ' + hostname)
         
+        # infinite loop to keep server running and accept clients
         while True:
             try: 
-                clientsocket, address = self.server.accept() #accepting incoming connection 
+                #accepting incoming connection from a client 
+                clientsocket, address = self.server.accept()  
                 print("Accepted connection from" , address)
+                # Create a new client instance for connected client
+                client = Client(clientsocket, address, hostname)
 
-                client = Client(clientsocket, address, hostname)  # Create a new client instance
-
-                # use of client_lock to making sure the thread is safe to access to clients dictionary
+                # use of client_lock to making sure thread is safe to access to clients dictionary
                 with client_lock:
                     clients[address] = client  # store client info
                 
-                # Create and start a new thread to handle the client
-                server = Server(self, hostname)  # Instantiate the Server class
+                server = Server(self, hostname)  # Instantiate Server class
                    
-                #making a new thread to handle client, to allow for multiple concurrent clients
+                # creating a new thread to handle client, to allow for multiple concurrent clients
                 newthread = threading.Thread(target=server.handling_client, args=(clientsocket, address))
-                newthread.daemon = True #making sure thread exits when main program does
-                newthread.start() #new thread to handle clients
+                newthread.daemon = True # daemon threads will exit when main program exists
+                newthread.start() # start thread to handle clients
 
             except Exception as e:
                 print(f"Error while handling client: {e}")   
@@ -56,18 +62,21 @@ class Network_Handler:
         print("Error creating socket:", e)
         
      finally:
+            #closing server socket when exiting 
             server.close()
             print("Server closed")  
-            
+
+ # function to send data to client            
  def send(self, clientsocket, data):
         try:
-            # Encode the data to bytes and send it to the client
+            # encode the data to bytes and send it to the client
             print("Sending data")
             clientsocket.send(data.encode('utf-8') + b'\r\n') 
         except Exception as e:
             print(f"Error sending data: {e}")
            # self.close_connection(clientsocket)
 
+ # function to receive data from a client
  def receive(self, clientsocket):
         try:
             # Receive up to 1024 bytes of data and decode it
@@ -83,7 +92,8 @@ class Network_Handler:
             print(f"Error receiving data: {e}")
             #self.close_connection(clientsocket)
             return None
-
+        
+ # function to close the connection to a client
  def close_connection(self, clientsocket):
         try:
             print("Closing connection...")
@@ -92,23 +102,22 @@ class Network_Handler:
             print(f"Error closing connection: {e}")
 
 
-
-
-
-
-
+# class that handles individual communication
 class Server:
  def __init__(self, network_handler, hostname):
         self.network_handler = network_handler  # store the reference to the Network_Handler instance
         self.hostname = hostname
 
+ # function to handle client communication
  def handling_client(self, clientsocket, address):
     #print("handling_client called for:", clientsocket.getpeername())  # checking which client is connected
-    
-    last_activity_time = time.time()  # tracks the last time we received anything from client
-    ping_interval = 20  # time for sending PING if no activity from the client
 
-    pong_timeout = 60  # timeout for waiting for PONG or anything else
+    # tracks the last time we received anything from client
+    last_activity_time = time.time()
+    # time for sending PING if no activity from the client
+    ping_interval = 20  
+    # timeout for waiting for PONG or anything else
+    pong_timeout = 60  
     welcomed = False
 
     try:
@@ -133,11 +142,10 @@ class Server:
                     if data:
                         print(f"Received message from {address}: {data}")
 
-                        # reset last activity time
+                        # reset last activity time upon receiving data
                         last_activity_time = time.time()
 
-                        # Process other data
-
+                        # prcoess the recieved data
                         dataBool = self.processing_data(clientsocket, data, address)
                         
                         client = clients[address]
@@ -155,19 +163,22 @@ class Server:
     finally:
         print("closing")
 
+        # remove client from all channels
         for channel_name in channels:
             channels[channel_name].remove_member(clients[address])
             print("members")
             for members in channels[channel_name].members:
                 print(members)
-        
+
+        # send quit message and close         
         message = clients[address].username
         self.quit_message(clientsocket, address, message)
-        
+
+        #close the connection
         self.network_handler.close_connection(clientsocket) 
         print("Closed connection by", address)
 
-# process data received
+ # function to process data received from client
  def processing_data(self, clientsocket, data, address):
     print("data received:", data)
     lines = data.splitlines()
@@ -175,31 +186,31 @@ class Server:
     
     for line in lines:  # handle multiple lines
         
-        #handling user command
+        # handling USER command to set username
         if line.startswith('USER'):
             client.set_username(line)
 
-        # cap command
+        # handling CAP command
         elif line.startswith('CAP'):
             pass  
         
-        #handling ping command 
+        # handling PING command from client
         elif line.startswith('PING'):
             self.PONG(clientsocket, line)
 
-        #handling nick command 
+        # handling NICK command to set nickname
         elif line.startswith('NICK'):
             client.handle_nickname(clientsocket, address, line)
         
-        #handling pong command
+        # handling PONG command
         elif line.startswith('PONG'):  # respond to PONG
             print(f"PONG received from {address}")
             last_pong_time = time.time()  # reset the pong time when PONG received
 
-        #handling channel joining
+        # handling channel JOIN command
         elif line.startswith('JOIN'):
             channel_name = line.split()[1]
-            # if there are multiple channel names, split on commas
+            # if multiple channel names, split by commas
             if len(channel_name.split(",")) > 1:
                 all_channel_names = channel_name.split(",")
                 for channel_name in all_channel_names:
@@ -207,16 +218,16 @@ class Server:
             else:
                 self.join_channel(clientsocket, address, channel_name)
 
-        # handle leaving channel
+        # handle PART command to leave channel
         elif line.startswith('PART'):
             channel_name = line.split()[1]
             self.leave_channel(clientsocket, address, channel_name)
         
-        #handling messages
+        # handling PRIVMSG private messages
         elif line.startswith('PRIVMSG'):
             self.handle_privmsg(line, clientsocket, address)
 
-        #handling quit 
+        # handling quit 
         elif line.startswith('QUIT'):
             # close the server
             #self.quit_message(clientsocket, address, line)
@@ -229,18 +240,20 @@ class Server:
 
             return False
         
+        # handling MODE command to change modes between channels        
         elif line.startswith('MODE'):
             # channel mode message
             self.mode_message(line, clientsocket, address)
 
+# handling WHO command to display whos in the channel
         elif line.startswith('WHO'):
             channel_name = line.split()[1]
             self.who_reply(channel_name, address,clientsocket)       
         else:
-            # Unknown command if it is not in the list of known ones
+            # unknown command feedback if it is not in list of known ones
             error_message = f":{self.hostname} 421 * {line} :Unknown command"
             self.network_handler.send(clientsocket, error_message)
-    return True 
+    return True  #continuing to process data
 
 # send a PING message to make sure client is still connected
  def PING(self, client):
