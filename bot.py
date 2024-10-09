@@ -32,13 +32,15 @@ def getText(bot, channel):
                 bot.helpCommand(text)
             elif text.find('PRIVMSG ' + channelName + ' :!slap') != -1: # used for slap command
                 bot.slapCommand(text)
-            elif text.find('PRIVMSG ' + nick) != -1: # used for sending a fact
+
+            elif text.find('PRIVMSG ' + channelName + ' :!kick') != -1:
+                bot.kickCommand(text)
+            elif text.find('PRIVMSG ' + channelName + " :!") != -1:
+                sendMsg('commande invalide, tapez !help pour les commandes', channelName)
+            elif text.find('PRIVMSG ' + nick) != -1:
                 bot.sendFact(text)
             elif text.find('PRIVMSG ' + channelName + ' :!names') != -1: # used for name command
                 bot.namesCommand()
-            #elif text.find('PRIVMSG ' + channelName + ' :!kick') != -1:
-                #bot.kickCommand(text)
-            
             elif "352" in line: # 352 is the WHO reply command
                 name = line.split()[7]
                 channel.checkUser(name)
