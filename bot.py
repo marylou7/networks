@@ -40,6 +40,9 @@ def getText(bot, channel):
             elif "352" in line: # 352 is the WHO reply command
                 name = line.split()[7]
                 channel.checkUser(name)
+            elif "QUIT" in line or "PART" in line:
+                name = bot.getSender(text)
+                channel.removeUser(name)
         return text
 
 def sendPong():
@@ -345,6 +348,11 @@ class Channel:
     def checkUser(self, name):
         if name not in self.userList:
             self.userList.append(name) # store list of users globally, so we dont have to keep calling fucntions to get them
+
+    def removeUser(self, name):
+        if name in self.userList:
+            self.userList.remove(name)
+            print("Removed: " + name)
 
 try:
     botSock.connect((HOST, PORT))
