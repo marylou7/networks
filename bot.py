@@ -147,10 +147,6 @@ if len(sys.argv) > 0:
 class Bot:
     
     userlist = [] # store users in list
-
-    #botSock = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
-    #global NICK
-    #NICK = 'Ludovic' #sets default nickname for bot
     
     def __init__(self, nickname, channel):
         self.nickname = nickname
