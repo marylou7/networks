@@ -514,7 +514,7 @@ class Client:
                 if self in channel.members: # check if the client is a member of the channel
                     for member in channel.members:    # send message to all memebers in the channel
                         if member.socket != self.socket:  # don't send the message back to the sender
-                            channel_message = f":{self.nickname}!{self.username}@{HOST} PRIVMSG {channel_name} :{message}"
+                            channel_message = f":{self.nickname}!{self.username}@{HOST} PRIVMSG {channel_name} {message}"
                             network_handler.send(member.socket, channel_message)
                 else:
                     error_message = f":{socket.gethostname()} 442 {channel_name} :You're not on that channel"
